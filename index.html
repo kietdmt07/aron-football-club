@@ -496,14 +496,76 @@
                     return false;
                   }
                 } else {
-                  if (orig.role !== updatedMem.role) {
-                    console.error("Từ chối ghi bc_members: R1 không được phép phân quyền thành viên.");
+                  if (updatedMem.role === 'admin' || updatedMem.role === 'owner') {
+                    console.error("Từ chối ghi bc_members: R1 không được phép phân quyền thành viên thành Admin hoặc Owner.");
                     return false;
                   }
                 }
               }
             } else {
               console.error(`Từ chối ghi bc_members: Vai trò ${userRole} không hợp lệ.`);
+              return false;
+            }
+          }
+        }
+      } else {
+        const original = await loadKey('bc_members', []);
+        const newVal = val || [];
+        const isKietdmt = state.me && state.me.username === 'kietdmt';
+        
+        const newMembers = newVal.filter(m => !original.some(o => o.id === m.id));
+        for (const nm of newMembers) {
+          if ((nm.role === 'admin' || nm.role === 'owner') && !isKietdmt) {
+            console.error("Từ chối ghi bc_members: Chỉ có Owner 'kietdmt' mới được bổ nhiệm Admin/Owner khi thêm mới.");
+            return false;
+          }
+        }
+        
+        for (let i = 0; i < original.length; i++) {
+          const orig = original[i];
+          const updatedMem = newVal.find(x => x.id === orig.id);
+          
+          if (!updatedMem) {
+            if (orig.username === 'kietdmt' || orig.role === 'owner') {
+              console.error("Từ chối ghi bc_members: Không được phép xóa Owner 'kietdmt'.");
+              return false;
+            }
+            if (!isKietdmt && (orig.role === 'admin' || orig.role === 'owner')) {
+              console.error("Từ chối ghi bc_members: Chỉ có Owner 'kietdmt' mới được phép xóa Admin hoặc Owner.");
+              return false;
+            }
+            continue;
+          }
+          
+          if (orig.username === 'kietdmt' || orig.role === 'owner') {
+            if (JSON.stringify(orig) !== JSON.stringify(updatedMem)) {
+              if (!isKietdmt) {
+                console.error("Từ chối ghi bc_members: Không được phép sửa đổi hoặc hạ quyền của Owner 'kietdmt'.");
+                return false;
+              }
+            }
+          }
+          
+          if (orig.role !== 'owner' && updatedMem.role === 'owner') {
+            if (!isKietdmt) {
+              console.error("Từ chối ghi bc_members: Chỉ có Owner 'kietdmt' mới được bổ nhiệm Owner mới.");
+              return false;
+            }
+          }
+          
+          if (userRole === 'admin' && !isKietdmt) {
+            if (orig.id === state.me.id) {
+              if (orig.role !== updatedMem.role) {
+                console.error("Từ chối ghi bc_members: Admin không được tự ý thay đổi chức vụ của mình.");
+                return false;
+              }
+            }
+            if (orig.role !== 'admin' && updatedMem.role === 'admin') {
+              console.error("Từ chối ghi bc_members: Admin không được bổ nhiệm Admin mới.");
+              return false;
+            }
+            if (orig.role === 'admin' && updatedMem.role !== 'admin') {
+              console.error("Từ chối ghi bc_members: Admin không được hạ quyền Admin khác.");
               return false;
             }
           }
@@ -759,8 +821,8 @@
                   return null;
                 }
               } else {
-                if (orig.role !== updatedMem.role) {
-                  console.error("Từ chối ghi thành viên: R1 không được phép phân quyền thành viên.");
+                if (updatedMem.role === 'admin' || updatedMem.role === 'owner') {
+                  console.error("Từ chối ghi thành viên: R1 không được phép phân quyền thành viên thành Admin hoặc Owner.");
                   return null;
                 }
               }
@@ -768,6 +830,66 @@
           } else {
             console.error(`Từ chối ghi thành viên: Vai trò ${userRole} không hợp lệ.`);
             return null;
+          }
+        }
+      } else {
+        const isKietdmt = state.me && state.me.username === 'kietdmt';
+        
+        const newMembers = newVal.filter(m => !original.some(o => o.id === m.id));
+        for (const nm of newMembers) {
+          if ((nm.role === 'admin' || nm.role === 'owner') && !isKietdmt) {
+            console.error("Từ chối ghi thành viên: Chỉ có Owner 'kietdmt' mới được bổ nhiệm Admin/Owner khi thêm mới.");
+            return null;
+          }
+        }
+        
+        for (let i = 0; i < original.length; i++) {
+          const orig = original[i];
+          const updatedMem = newVal.find(x => x.id === orig.id);
+          
+          if (!updatedMem) {
+            if (orig.username === 'kietdmt' || orig.role === 'owner') {
+              console.error("Từ chối ghi thành viên: Không được phép xóa Owner 'kietdmt'.");
+              return null;
+            }
+            if (!isKietdmt && (orig.role === 'admin' || orig.role === 'owner')) {
+              console.error("Từ chối ghi thành viên: Chỉ có Owner 'kietdmt' mới được phép xóa Admin hoặc Owner.");
+              return null;
+            }
+            continue;
+          }
+          
+          if (orig.username === 'kietdmt' || orig.role === 'owner') {
+            if (JSON.stringify(orig) !== JSON.stringify(updatedMem)) {
+              if (!isKietdmt) {
+                console.error("Từ chối ghi thành viên: Không được phép sửa đổi hoặc hạ quyền của Owner 'kietdmt'.");
+                return null;
+              }
+            }
+          }
+          
+          if (orig.role !== 'owner' && updatedMem.role === 'owner') {
+            if (!isKietdmt) {
+              console.error("Từ chối ghi thành viên: Chỉ có Owner 'kietdmt' mới được bổ nhiệm Owner mới.");
+              return null;
+            }
+          }
+          
+          if (userRole === 'admin' && !isKietdmt) {
+            if (orig.id === myId) {
+              if (orig.role !== updatedMem.role) {
+                console.error("Từ chối ghi thành viên: Admin không được tự ý thay đổi chức vụ của mình.");
+                return null;
+              }
+            }
+            if (orig.role !== 'admin' && updatedMem.role === 'admin') {
+              console.error("Từ chối ghi thành viên: Admin không được bổ nhiệm Admin mới.");
+              return null;
+            }
+            if (orig.role === 'admin' && updatedMem.role !== 'admin') {
+              console.error("Từ chối ghi thành viên: Admin không được hạ quyền Admin khác.");
+              return null;
+            }
           }
         }
       }
@@ -2385,12 +2507,15 @@
           actions.appendChild(statusBtn);
         }
       }
-      if (isAdmin() && m.status !== 'pending') {
+      const isR1User = role() === 'r1';
+      const isTargetAdminOrOwner = m.role === 'admin' || isOwner(m);
+      if ((isAdmin() || isR1User) && m.status !== 'pending') {
         const isOwnerRow = isOwner(m);
         const isCurrentUserOwner = isOwner();
+        const r1Restricted = isR1User && isTargetAdminOrOwner;
 
-        // 1. Chỉ cho phép sửa thông tin của Owner nếu chính Owner đang đăng nhập
-        if (!isOwnerRow || isCurrentUserOwner) {
+        // 1. Chỉ cho phép sửa thông tin nếu không phải R1 sửa Admin/Owner, và của Owner nếu chính Owner đang đăng nhập
+        if (!r1Restricted && (!isOwnerRow || isCurrentUserOwner)) {
           const editBtn = el(`<button class="bc-btn outline small" id="edit-btn-${m.id}">Sửa</button>`);
           editBtn.onclick = () => {
             state.editingMemberId = m.id;
@@ -2400,10 +2525,21 @@
         }
 
         // 2. Chỉ cho phép đổi nhóm thành viên/quyền của Owner nếu chính Owner đang đăng nhập
-        const roleSel = el(`<select class="bc-select" style="width:90px; padding:5px 6px;" ${isOwnerRow && !isCurrentUserOwner ? 'disabled' : ''}>
-          <option value="r2" ${m.role==='r2'?'selected':''}>R2</option>
-          <option value="r1" ${m.role==='r1'?'selected':''}>R1</option>
-          <option value="admin" ${m.role==='admin'?'selected':''}>Admin</option>
+        let optionsHtml = '';
+        if (isR1User) {
+          optionsHtml = `
+            <option value="r2" ${m.role==='r2'?'selected':''}>R2</option>
+            <option value="r1" ${m.role==='r1'?'selected':''}>R1</option>
+          `;
+        } else {
+          optionsHtml = `
+            <option value="r2" ${m.role==='r2'?'selected':''}>R2</option>
+            <option value="r1" ${m.role==='r1'?'selected':''}>R1</option>
+            <option value="admin" ${m.role==='admin'?'selected':''}>Admin</option>
+          `;
+        }
+        const roleSel = el(`<select class="bc-select" style="width:90px; padding:5px 6px;" ${r1Restricted || (isOwnerRow && !isCurrentUserOwner) ? 'disabled' : ''}>
+          ${optionsHtml}
         </select>`);
         roleSel.onchange = async (e) => {
           if (isOwnerRow && !isCurrentUserOwner) {
@@ -2426,8 +2562,8 @@
         };
         actions.appendChild(roleSel);
 
-        // 3. Reset mật khẩu: Chỉ Owner được phép reset mật khẩu của Admin hoặc Owner khác
-        const canReset = isCurrentUserOwner || (!isOwnerRow && m.role !== 'admin');
+        // 3. Reset mật khẩu: Chỉ Owner được phép reset mật khẩu của Admin hoặc Owner khác, R1 được reset R2
+        const canReset = !r1Restricted && (isCurrentUserOwner || (!isOwnerRow && m.role !== 'admin'));
         if (canReset) {
           const resetBtn = el(`<button class="bc-btn outline small">Reset mật khẩu</button>`);
           resetBtn.onclick = async () => {
@@ -2441,8 +2577,8 @@
           actions.appendChild(resetBtn);
         }
 
-        // 4. Xóa thành viên: Không ai được xóa tài khoản Owner trừ chính Owner
-        if (!isOwnerRow || isCurrentUserOwner) {
+        // 4. Xóa thành viên: Chỉ Admin/Owner mới được phép xóa (R1 không được xóa)
+        if (!isR1User && (!isOwnerRow || isCurrentUserOwner)) {
           const delBtn = el(`<button class="bc-btn danger small">Xoá</button>`);
           delBtn.onclick = async () => {
             if (isOwnerRow && !isCurrentUserOwner) {
@@ -2582,17 +2718,35 @@
   // ---------- QUỸ & CHI PHÍ ----------
   function computeMemberMonthSummary(month){
     const result = {};
-    state.members.forEach(m => result[m.id] = { count: 0, owed: 0 });
+    state.members.forEach(m => result[m.id] = { count: 0, owed: 0, sessionOwed: 0, fineOwed: 0 });
     state.sessions.filter(s => sessionMonthKey(s) === month).forEach(s => {
       const shares = computeShares(s);
       shares.fixedNames.forEach(name => {
         const mem = state.members.find(x => x.name === name);
-        if (mem) { result[mem.id].count++; result[mem.id].owed += shares.fixedShare; }
+        if (mem) { 
+          result[mem.id].count++; 
+          result[mem.id].sessionOwed += shares.fixedShare; 
+          result[mem.id].owed += shares.fixedShare; 
+        }
       });
       shares.casualNames.forEach(name => {
         const mem = state.members.find(x => x.name === name);
-        if (mem) { result[mem.id].count++; result[mem.id].owed += shares.casualShare; }
+        if (mem) { 
+          result[mem.id].count++; 
+          result[mem.id].sessionOwed += shares.casualShare; 
+          result[mem.id].owed += shares.casualShare; 
+        }
       });
+    });
+    // Add fines of this month to owed
+    const fines = state.settings.fines || [];
+    fines.forEach(f => {
+      if (f.date && f.date.slice(0, 7) === month) {
+        if (result[f.memberId]) {
+          result[f.memberId].fineOwed += (f.amount || 0);
+          result[f.memberId].owed += (f.amount || 0);
+        }
+      }
     });
     return result;
   }
@@ -2765,10 +2919,12 @@
           saveBtn.onclick = async () => {
             const todayStr = new Date().toISOString().slice(0,10);
             const entries = {};
+            let finesChanged = false;
             rowsMembers.forEach(m => {
               const paidEl = document.getElementById(`paid-${m.id}`);
               const prepaidEl = document.getElementById(`prepaid-${m.id}`);
               if (paidEl || prepaidEl) {
+                const s = summary[m.id] || { count: 0, owed: 0 };
                 const existingPayment = (state.payments[m.id] || {})[month] || { paid: 0, prepaid: 0 };
                 const paidVal = paidEl ? (parseFloat(paidEl.value) || 0) : (existingPayment.paid || 0);
                 const prepaidVal = prepaidEl ? (parseFloat(prepaidEl.value) || 0) : (existingPayment.prepaid || 0);
@@ -2777,8 +2933,20 @@
                   dateVal = todayStr;
                 }
                 entries[m.id] = { paid: paidVal, prepaid: prepaidVal, date: dateVal };
+
+                if (paidVal + prepaidVal >= s.owed) {
+                  state.settings.fines.forEach(f => {
+                    if (f.memberId === m.id && f.status === 'pending' && f.date && f.date.slice(0, 7) === month) {
+                      f.status = 'paid';
+                      finesChanged = true;
+                    }
+                  });
+                }
               }
             });
+            if (finesChanged) {
+              await saveSettings();
+            }
             await mutatePayments(latest => {
               const updated = Object.assign({}, latest);
               Object.keys(entries).forEach(mid => {
@@ -2800,10 +2968,34 @@
       const p = (state.payments[myMember.id] || {})[month] || { paid: 0, prepaid: 0 };
       const remaining = s.owed - (p.paid||0) - (p.prepaid||0);
       
+      const myFines = (state.settings.fines || [])
+        .filter(f => f.memberId === myMember.id && f.date && f.date.slice(0, 7) === month);
+      const pendingFines = myFines.filter(f => f.status === 'pending');
+      const fineOwed = s.fineOwed || 0;
+      const sessionOwed = s.sessionOwed || 0;
+
+      let breakdownHtml = '';
+      if (fineOwed > 0) {
+        breakdownHtml = `<div style="font-size:12px; color:#6b7a73; margin-top:2px; padding:6px 10px; background:#FAF8F5; border-radius:8px; border:1px dashed #E3E0D6; margin-bottom:4px; display:flex; flex-direction:column; gap:4px;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span>• Phí sinh hoạt:</span>
+            <strong>${formatVND(sessionOwed)}</strong>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; color:#993C1D;">
+            <span>• Tiền phạt phát sinh:</span>
+            <strong>+${formatVND(fineOwed)}</strong>
+          </div>
+          ${pendingFines.length > 0 ? `<div style="font-size:11px; color:#993C1D; font-style:italic; border-top:1px dashed #E3E0D6; padding-top:4px; margin-top:2px;">
+            Chi tiết phạt chưa đóng: ${pendingFines.map(f => `${f.infractionType} (${formatVND(f.amount)})`).join(', ')}
+          </div>` : ''}
+        </div>`;
+      }
+
       const paymentSection = el(`<div class="bc-card" style="margin-top: 1rem;">
         <h3 style="font-size:15px; color:#1B4332; margin-bottom:8px;">Nộp phí - Tháng ${monthLabel(month).replace(/^Th/, '')}</h3>
         <div style="display:flex; flex-direction:column; gap:8px;">
           <div>Bạn còn cần thanh toán: <strong style="color: ${remaining > 0 ? '#993C1D' : '#27500A'}; font-size:16px;">${formatVND(remaining)}</strong></div>
+          ${breakdownHtml}
           <button class="bc-btn" id="r2-pay-qr-btn">Nộp tiền qua QR</button>
           <div id="r2-qr-panel" style="display:none; border-top:1px dashed #E3E0D6; padding-top:10px; margin-top:10px;">
             <div style="display:flex; flex-direction:column; gap:8px;">
@@ -3225,6 +3417,19 @@
             });
             if (!reqOk) { alert('Lỗi duyệt yêu cầu.'); return; }
             
+            // Auto-mark member's pending fines for that month as paid
+            let finesChanged = false;
+            const fines = state.settings.fines || [];
+            fines.forEach(f => {
+              if (f.memberId === r.memberId && f.status === 'pending' && f.date && f.date.slice(0, 7) === r.month) {
+                f.status = 'paid';
+                finesChanged = true;
+              }
+            });
+            if (finesChanged) {
+              await saveSettings();
+            }
+
             await mutatePayments(latest => {
               const updated = Object.assign({}, latest);
               updated[r.memberId] = Object.assign({}, updated[r.memberId] || {});
