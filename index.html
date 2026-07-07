@@ -1932,7 +1932,7 @@
 
   function renderTabs(){
     const wrap = el(`<div style="display:flex; gap:6px; margin-bottom:1rem; border-bottom:1px solid #E3E0D6; padding-bottom:0.75rem;"></div>`);
-    let tabs = [['sessions','Lịch đá bóng'],['tournament','Giải đấu'],['members','Thành viên'],['courts','Sân bóng'],['fund','Quỹ & chi phí'],['tactics','Sa bàn & Giải trí']];
+    let tabs = [['sessions','Lịch đá bóng'],['tactics','Sa bàn & Giải trí'],['tournament','Giải đấu'],['members','Thành viên'],['courts','Sân bóng'],['fund','Quỹ & chi phí']];
     if (role() === 'r2') {
       tabs = tabs.filter(t => t[0] !== 'courts');
     }
