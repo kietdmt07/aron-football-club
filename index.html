@@ -419,74 +419,83 @@
       }
     } else if (key === 'bc_members') {
       if (!isOwnerOrAdmin) {
-        if (!state.me) {
-          console.error("Từ chối ghi bc_members: Không có thông tin người dùng đăng nhập.");
-          return false;
-        }
         const original = await loadKey('bc_members', []);
         const newVal = val || [];
-        
-        if (original.length !== newVal.length) {
-          console.error("Từ chối ghi bc_members: Chỉ có Admin/Owner mới được phép thêm/xóa thành viên.");
-          return false;
-        }
-        
-        for (let i = 0; i < original.length; i++) {
-          const orig = original[i];
-          const updatedMem = newVal.find(x => x.id === orig.id);
-          if (!updatedMem) {
-            console.error("Từ chối ghi bc_members: Không tìm thấy thành viên khớp ID.");
+        if (!state.me) {
+          const isReg = (original.length === 0 && newVal.length === 1 && newVal[0].status === 'active' && newVal[0].role === 'admin') ||
+                        (newVal.length === original.length + 1 && newVal.some(m => !original.some(o => o.id === m.id) && m.status === 'pending' && m.role === 'r2'));
+          let noMods = true;
+          for (let i = 0; i < original.length; i++) {
+            if (JSON.stringify(original[i]) !== JSON.stringify(newVal[i])) {
+              noMods = false;
+              break;
+            }
+          }
+          if (!isReg || !noMods) {
+            console.error("Từ chối ghi bc_members: Không có thông tin người dùng đăng nhập hoặc sửa đổi trái phép.");
             return false;
           }
-          
-          if (userRole === 'r2') {
-            if (orig.id !== state.me.id) {
-              if (JSON.stringify(orig) !== JSON.stringify(updatedMem)) {
-                console.error("Từ chối ghi bc_members: R2 không có quyền sửa thông tin người khác.");
-                return false;
-              }
-            } else {
-              if (
-                orig.role !== updatedMem.role ||
-                orig.status !== updatedMem.status ||
-                orig.username !== updatedMem.username ||
-                orig.email !== updatedMem.email ||
-                orig.phone !== updatedMem.phone ||
-                orig.level !== updatedMem.level
-              ) {
-                console.error("Từ chối ghi bc_members: R2 cố tình thay đổi trường bị cấm.");
-                return false;
-              }
+        } else {
+          if (original.length !== newVal.length) {
+            console.error("Từ chối ghi bc_members: Chỉ có Admin/Owner mới được phép thêm/xóa thành viên.");
+            return false;
+          }
+          for (let i = 0; i < original.length; i++) {
+            const orig = original[i];
+            const updatedMem = newVal.find(x => x.id === orig.id);
+            if (!updatedMem) {
+              console.error("Từ chối ghi bc_members: Không tìm thấy thành viên khớp ID.");
+              return false;
             }
-          } else if (userRole === 'r1') {
-            if (orig.id === state.me.id) {
-              if (
-                orig.role !== updatedMem.role ||
-                orig.status !== updatedMem.status ||
-                orig.username !== updatedMem.username ||
-                orig.email !== updatedMem.email ||
-                orig.phone !== updatedMem.phone ||
-                orig.level !== updatedMem.level
-              ) {
-                console.error("Từ chối ghi bc_members: R1 cố tình thay đổi trường bị cấm của chính mình.");
-                return false;
-              }
-            } else {
-              if (orig.role === 'admin' || orig.role === 'owner') {
+            if (userRole === 'r2') {
+              if (orig.id !== state.me.id) {
                 if (JSON.stringify(orig) !== JSON.stringify(updatedMem)) {
-                  console.error("Từ chối ghi bc_members: R1 không được quyền sửa đổi thông tin của Admin/Owner.");
+                  console.error("Từ chối ghi bc_members: R2 không có quyền sửa thông tin người khác.");
                   return false;
                 }
               } else {
-                if (orig.role !== updatedMem.role) {
-                  console.error("Từ chối ghi bc_members: R1 không được phép phân quyền thành viên.");
+                if (
+                  orig.role !== updatedMem.role ||
+                  orig.status !== updatedMem.status ||
+                  orig.username !== updatedMem.username ||
+                  orig.email !== updatedMem.email ||
+                  orig.phone !== updatedMem.phone ||
+                  orig.level !== updatedMem.level
+                ) {
+                  console.error("Từ chối ghi bc_members: R2 cố tình thay đổi trường bị cấm.");
                   return false;
                 }
               }
+            } else if (userRole === 'r1') {
+              if (orig.id === state.me.id) {
+                if (
+                  orig.role !== updatedMem.role ||
+                  orig.status !== updatedMem.status ||
+                  orig.username !== updatedMem.username ||
+                  orig.email !== updatedMem.email ||
+                  orig.phone !== updatedMem.phone ||
+                  orig.level !== updatedMem.level
+                ) {
+                  console.error("Từ chối ghi bc_members: R1 cố tình thay đổi trường bị cấm của chính mình.");
+                  return false;
+                }
+              } else {
+                if (orig.role === 'admin' || orig.role === 'owner') {
+                  if (JSON.stringify(orig) !== JSON.stringify(updatedMem)) {
+                    console.error("Từ chối ghi bc_members: R1 không được quyền sửa đổi thông tin của Admin/Owner.");
+                    return false;
+                  }
+                } else {
+                  if (orig.role !== updatedMem.role) {
+                    console.error("Từ chối ghi bc_members: R1 không được phép phân quyền thành viên.");
+                    return false;
+                  }
+                }
+              }
+            } else {
+              console.error(`Từ chối ghi bc_members: Vai trò ${userRole} không hợp lệ.`);
+              return false;
             }
-          } else {
-            console.error(`Từ chối ghi bc_members: Vai trò ${userRole} không hợp lệ.`);
-            return false;
           }
         }
       }
@@ -672,13 +681,25 @@
       
       if (!isOwnerOrAdmin) {
         if (!state.me) {
-          console.error("Từ chối ghi thành viên: Không có thông tin người dùng đăng nhập.");
-          return null;
-        }
-        
-        if (original.length !== newVal.length) {
-          console.error("Từ chối ghi thành viên: Chỉ có Admin/Owner mới được phép thêm/xóa thành viên.");
-          return null;
+          const isReg = (original.length === 0 && newVal.length === 1 && newVal[0].status === 'active' && newVal[0].role === 'admin') ||
+                        (newVal.length === original.length + 1 && newVal.some(m => !original.some(o => o.id === m.id) && m.status === 'pending' && m.role === 'r2'));
+          let noMods = true;
+          for (let i = 0; i < original.length; i++) {
+            if (JSON.stringify(original[i]) !== JSON.stringify(newVal[i])) {
+              noMods = false;
+              break;
+            }
+          }
+          if (!isReg || !noMods) {
+            console.error("Từ chối ghi thành viên: Không có thông tin người dùng đăng nhập hoặc sửa đổi trái phép.");
+            return null;
+          }
+          return newVal;
+        } else {
+          if (original.length !== newVal.length) {
+            console.error("Từ chối ghi thành viên: Chỉ có Admin/Owner mới được phép thêm/xóa thành viên.");
+            return null;
+          }
         }
         
         for (let i = 0; i < original.length; i++) {
