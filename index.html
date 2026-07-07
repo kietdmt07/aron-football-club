@@ -323,7 +323,17 @@
   const WEEKDAYS = ["Chủ nhật","Thứ 2","Thứ 3","Thứ 4","Thứ 5","Thứ 6","Thứ 7"];
   function weekdayLabel(d){ if (!d) return ''; const dt = new Date(d + 'T00:00:00'); return isNaN(dt) ? '' : WEEKDAYS[dt.getDay()]; }
   function formatTimeRange(start, end){ return end ? `${start} - ${end}` : start; }
-
+  function getTeamTheme(nameOrKey) {
+    const k = (nameOrKey || '').includes('Đội A') || nameOrKey === 'A' ? 'A' :
+              ((nameOrKey || '').includes('Đội B') || nameOrKey === 'B' ? 'B' :
+               ((nameOrKey || '').includes('Đội C') || nameOrKey === 'C' ? 'C' : 'A'));
+    const teamThemes = {
+      'A': { emoji: '🔴', color: '#B32424', bgColor: '#FFF2F2', borderColor: '#F5C2C2' },
+      'B': { emoji: '🔵', color: '#0C447C', bgColor: '#F0F6FC', borderColor: '#B3D1F5' },
+      'C': { emoji: '🟢', color: '#27500A', bgColor: '#F3F9ED', borderColor: '#CBE5B6' }
+    };
+    return teamThemes[k] || teamThemes['A'];
+  }
   let state = {
     members: [], courts: [], sessions: [], tournaments: [], settings: { casualMultiplier: 1.5, logoUrl: '', bannerUrl: '', payment: { bankId: '', accountNo: '', accountName: '', qrUrl: '' } },
     payments: {}, fund: {}, donations: [], paymentRequests: [],
@@ -1075,10 +1085,11 @@
       const avgSkill = getAverageSkill(k);
       
       let teamName = k === 'A' ? 'Đội A' : (k === 'B' ? 'Đội B' : 'Đội C');
-      const teamCard = el(`<div class="bc-card" style="margin:0; padding:10px; border:1px solid var(--card-border); background:rgba(0,0,0,0.01); display:flex; flex-direction:column; justify-content:space-between; height:100%;">
+      const theme = getTeamTheme(k);
+      const teamCard = el(`<div class="bc-card" style="margin:0; padding:10px; border:1px solid ${theme.borderColor}; background:${theme.bgColor}; display:flex; flex-direction:column; justify-content:space-between; height:100%;">
         <div>
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; border-bottom:1px dashed #E3E0D6; padding-bottom:4px;">
-            <strong style="font-size:13px; color:#1B4332;">🔵 ${teamName} (${pids.length})</strong>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; border-bottom:1px dashed ${theme.borderColor}; padding-bottom:4px;">
+            <strong style="font-size:13px; color:${theme.color};">${theme.emoji} ${teamName} (${pids.length})</strong>
             <span class="bc-badge" style="background:#EAF3DE; color:#27500A; font-size:10px; font-weight:600;">⭐ TB: ${avgSkill}</span>
           </div>
           <div style="display:flex; flex-direction:column; gap:6px; max-height:220px; overflow-y:auto;" id="team-list-${k}-${s.id}"></div>
@@ -1105,11 +1116,13 @@
             </select>`;
           }
 
-          const playerRow = el(`<div style="display:flex; align-items:center; justify-content:space-between; background:#FFF; border:1px solid #E3E0D6; border-radius:6px; padding:4px 6px; font-size:12px;">
-            <div style="display:flex; align-items:center; gap:6px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;">
+          const playerRow = el(`<div style="display:flex; align-items:center; justify-content:space-between; background:#FFF; border:1px solid #E3E0D6; border-radius:6px; padding:4px 6px; font-size:12px; gap:4px;">
+            <div style="display:flex; align-items:center; gap:6px; flex:1; min-width:0;">
               ${avatarHtml(p, 20)}
-              <span style="font-weight:500; overflow:hidden; text-overflow:ellipsis;" title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</span>
-              <span style="font-size:9px; font-weight:600; color:#0C447C; background:#E6F1FB; padding:0 3px; border-radius:3px;">${posText}</span>
+              <div style="display:flex; flex-direction:column; min-width:0; flex:1;">
+                <span style="font-weight:500; word-break:break-word; line-height:1.2;" title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</span>
+                <span style="font-size:8px; font-weight:600; color:#0C447C; background:#E6F1FB; padding:0 3px; border-radius:3px; align-self:flex-start; margin-top:2px; line-height:1.3;">${posText}</span>
+              </div>
             </div>
             ${changeSelectHtml}
           </div>`);
@@ -1203,18 +1216,21 @@
         const score1Val = m.score1 !== null ? m.score1 : '';
         const score2Val = m.score2 !== null ? m.score2 : '';
         
+        const theme1 = getTeamTheme(m.team1);
+        const theme2 = getTeamTheme(m.team2);
+        
         let matchBoxHtml = '';
         if (canManage()) {
           matchBoxHtml = `<div class="bc-card" style="margin:0; padding:10px; border:1px solid var(--card-border); background:#FFF; display:flex; flex-direction:column; gap:6px;">
             <div style="font-size:11px; color:#8a877d; font-weight:600;">Trận ${idx+1}</div>
             <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px;">
-              <div style="font-weight:600; color:#1B4332; width:70px; text-align:left;">🔵 ${t1Name}</div>
+              <div style="font-weight:600; color:${theme1.color}; width:70px; text-align:left;">${theme1.emoji} ${t1Name}</div>
               <div style="display:flex; gap:4px; align-items:center;">
-                <input class="bc-input" type="number" min="0" id="sm-sc1-${s.id}-${idx}" value="${score1Val}" placeholder="🔵" style="width:40px; padding:2px; text-align:center; height:24px; font-size:12px;" />
+                <input class="bc-input" type="number" min="0" id="sm-sc1-${s.id}-${idx}" value="${score1Val}" placeholder="${theme1.emoji}" style="width:40px; padding:2px; text-align:center; height:24px; font-size:12px;" />
                 <span style="font-size:12px; color:#8a877d;">-</span>
-                <input class="bc-input" type="number" min="0" id="sm-sc2-${s.id}-${idx}" value="${score2Val}" placeholder="🔴" style="width:40px; padding:2px; text-align:center; height:24px; font-size:12px;" />
+                <input class="bc-input" type="number" min="0" id="sm-sc2-${s.id}-${idx}" value="${score2Val}" placeholder="${theme2.emoji}" style="width:40px; padding:2px; text-align:center; height:24px; font-size:12px;" />
               </div>
-              <div style="font-weight:600; color:#854F0B; width:70px; text-align:right;">🔴 ${t2Name}</div>
+              <div style="font-weight:600; color:${theme2.color}; width:70px; text-align:right;">${theme2.emoji} ${t2Name}</div>
             </div>
             <button class="bc-btn small" id="sm-save-btn-${s.id}-${idx}" style="padding:2px 8px; font-size:11px; height:22px; width:50px; margin-left:auto; background:#27500A; border-color:#27500A;">Lưu</button>
           </div>`;
@@ -1224,9 +1240,9 @@
           matchBoxHtml = `<div class="bc-card" style="margin:0; padding:10px; border:1px solid #E3E0D6; background:#FFF; display:flex; flex-direction:column; gap:4px;">
             <div style="font-size:11px; color:#8a877d;">Trận ${idx+1}</div>
             <div style="display:flex; justify-content:space-between; align-items:center; font-size:13px; font-weight:600;">
-              <span style="color:#1B4332;">🔵 ${t1Name}</span>
+              <span style="color:${theme1.color};">${theme1.emoji} ${t1Name}</span>
               <span style="color:var(--text-primary); font-size:14px; font-family:'Oswald', sans-serif;">${sc1} - ${sc2}</span>
-              <span style="color:#854F0B;">🔴 ${t2Name}</span>
+              <span style="color:${theme2.color};">${theme2.emoji} ${t2Name}</span>
             </div>
           </div>`;
         }
@@ -1313,9 +1329,10 @@
       const table = standingsCard.querySelector('table');
       standingsList.forEach((st, idx) => {
         const tName = st.key === 'A' ? 'Đội A' : (st.key === 'B' ? 'Đội B' : 'Đội C');
+        const theme = getTeamTheme(st.key);
         const row = el(`<tr style="border-bottom:1px solid #F8F9FA;">
           <td style="padding:6px 4px; font-weight:600; color:${idx===0?'#27500A':'#8a877d'};">${idx+1}</td>
-          <td style="padding:6px 4px; font-weight:500;">🔵 ${tName}</td>
+          <td style="padding:6px 4px; font-weight:500; color:${theme.color};">${theme.emoji} ${tName}</td>
           <td style="padding:6px 4px; text-align:center;">${st.played}</td>
           <td style="padding:6px 4px; text-align:center;">${st.won} - ${st.drawn} - ${st.lost}</td>
           <td style="padding:6px 4px; text-align:center;">${st.gf}/${st.ga}</td>
@@ -1734,6 +1751,79 @@
         });
         wrap.appendChild(tourCard);
       }
+      
+      // Bảng vàng danh hiệu và huy hiệu danh dự
+      const guestStatsMap = {};
+      state.members.forEach(m => {
+        guestStatsMap[m.id] = { name: m.name, goals: 0, assists: 0, mvps: 0 };
+      });
+      (state.settings.achievements || []).forEach(a => {
+        if (guestStatsMap[a.memberId]) {
+          guestStatsMap[a.memberId].goals += (a.goals || 0);
+          guestStatsMap[a.memberId].assists += (a.assists || 0);
+          guestStatsMap[a.memberId].mvps += (a.mvps || 0);
+        }
+      });
+      const gLeaders = Object.entries(guestStatsMap).map(([id, x]) => ({ id, ...x })).filter(x => x.goals > 0).sort((a,b) => b.goals - a.goals).slice(0, 3);
+      const aLeaders = Object.entries(guestStatsMap).map(([id, x]) => ({ id, ...x })).filter(x => x.assists > 0).sort((a,b) => b.assists - a.assists).slice(0, 3);
+      const mLeaders = Object.entries(guestStatsMap).map(([id, x]) => ({ id, ...x })).filter(x => x.mvps > 0).sort((a,b) => b.mvps - a.mvps).slice(0, 3);
+
+      const gAwarded = [];
+      Object.entries(state.settings.badges || {}).forEach(([mid, list]) => {
+        const mem = state.members.find(x => x.id === mid);
+        if (mem && list.length > 0) gAwarded.push({ name: mem.name, list });
+      });
+
+      const guestAchievementsCard = el(`<div class="bc-card" style="margin-top: 1rem; background: #FFF; border: 1px solid #E3E0D6;">
+        <h2 style="font-size:16px; color:#1B4332; font-weight:600; display:flex; align-items:center; gap:8px; margin-bottom:12px; font-family:'Oswald', sans-serif;">
+          🏆 BẢNG VÀNG DANH HIỆU & HUY HIỆU
+        </h2>
+        <div style="display:flex; flex-direction:column; gap:12px;">
+          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap:8px;">
+            <div style="border-right:1px dashed #E3E0D6; padding-right:4px;">
+              <strong style="color:#B85C00; font-size:11px; display:block; margin-bottom:4px; font-family:'Oswald', sans-serif;">👑 PHÁ LƯỚI</strong>
+              ${gLeaders.length === 0 ? `<div style="font-size:10px; color:#8a877d; font-style:italic;">Trống</div>` :
+                gLeaders.map((st, idx) => `<div style="font-size:11px; display:flex; justify-content:space-between; margin-bottom:2px;">
+                  <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:70px;">${idx+1}. ${escapeHtml(st.name)}</span>
+                  <strong>${st.goals}⚽</strong>
+                </div>`).join('')
+              }
+            </div>
+            <div style="border-right:1px dashed #E3E0D6; padding-right:4px;">
+              <strong style="color:#0C447C; font-size:11px; display:block; margin-bottom:4px; font-family:'Oswald', sans-serif;">🎯 KIẾN TẠO</strong>
+              ${aLeaders.length === 0 ? `<div style="font-size:10px; color:#8a877d; font-style:italic;">Trống</div>` :
+                aLeaders.map((st, idx) => `<div style="font-size:11px; display:flex; justify-content:space-between; margin-bottom:2px;">
+                  <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:70px;">${idx+1}. ${escapeHtml(st.name)}</span>
+                  <strong>${st.assists}👟</strong>
+                </div>`).join('')
+              }
+            </div>
+            <div>
+              <strong style="color:#27500A; font-size:11px; display:block; margin-bottom:4px; font-family:'Oswald', sans-serif;">⭐ XUẤT SẮC (MVP)</strong>
+              ${mLeaders.length === 0 ? `<div style="font-size:10px; color:#8a877d; font-style:italic;">Trống</div>` :
+                mLeaders.map((st, idx) => `<div style="font-size:11px; display:flex; justify-content:space-between; margin-bottom:2px;">
+                  <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:70px;">${idx+1}. ${escapeHtml(st.name)}</span>
+                  <strong>${st.mvps}🏆</strong>
+                </div>`).join('')
+              }
+            </div>
+          </div>
+          ${gAwarded.length > 0 ? `
+            <div style="border-top:1px solid #E3E0D6; padding-top:8px; margin-top:4px;">
+              <strong style="font-size:11px; color:#1B4332; display:block; margin-bottom:6px; font-family:'Oswald', sans-serif;">🎖️ HUY HIỆU DANH DỰ VUI VẺ</strong>
+              <div style="display:flex; flex-wrap:wrap; gap:4px; max-height:100px; overflow-y:auto;">
+                ${gAwarded.map(ab => `<div style="background:#FAF8F5; border:1px solid #E3E0D6; border-radius:6px; padding:2px 6px; font-size:10px; font-weight:600; display:flex; align-items:center; gap:4px;">
+                  <span>👤 ${escapeHtml(ab.name)}:</span>
+                  <span style="display:flex; gap:2px;">
+                    ${ab.list.map(b => `<span class="bc-badge" style="background:#EAF3DE; color:#27500A; font-size:9px; padding:0 3px; font-weight:700;">${escapeHtml(b)}</span>`).join('')}
+                  </span>
+                </div>`).join('')}
+              </div>
+            </div>
+          ` : ''}
+        </div>
+      </div>`);
+      wrap.appendChild(guestAchievementsCard);
 
       // Thêm Bảng tin Lịch hoạt động sắp tới sau
       const bulletinCard = el(`<div class="bc-card" style="margin-top: 1rem; background: linear-gradient(to bottom, rgba(250, 248, 245, 0.95), rgba(255, 255, 255, 0.95)); border: 1px solid rgba(64, 145, 108, 0.25);">
@@ -4015,28 +4105,29 @@
 
   function renderTacticsAndFun() {
     const wrap = el(`<div></div>`);
+    const today = new Date().toLocaleDateString('sv-SE');
     
     // Khởi tạo trạng thái con và các khóa dữ liệu
-    state.tacticsSubTab = state.tacticsSubTab || 'board';
+    state.tacticsSubTab = state.tacticsSubTab || 'leaderboards';
     state.tacticsMode = state.tacticsMode || 'drag'; // 'drag' hoặc 'draw'
     state.settings.fines = state.settings.fines || [];
     state.settings.achievements = state.settings.achievements || [];
     state.settings.badges = state.settings.badges || {};
 
     const subTabs = el(`<div style="display:flex; gap:8px; margin-bottom:1rem; border-bottom:1px solid #EFEDE3; padding-bottom:8px;">
+      <button class="bc-btn ${state.tacticsSubTab==='leaderboards'?'primary':'outline'} small" id="tst-leaders-btn">🏆 Bảng vàng & Huy hiệu</button>
       <button class="bc-btn ${state.tacticsSubTab==='board'?'primary':'outline'} small" id="tst-board-btn">📋 Sa bàn chiến thuật</button>
       <button class="bc-btn ${state.tacticsSubTab==='fines'?'primary':'outline'} small" id="tst-fines-btn">💰 Quỹ phạt CLB</button>
-      <button class="bc-btn ${state.tacticsSubTab==='leaderboards'?'primary':'outline'} small" id="tst-leaders-btn">🏆 Bảng vàng & Huy hiệu</button>
     </div>`);
     wrap.appendChild(subTabs);
 
     setTimeout(() => {
+      const bLeaders = document.getElementById('tst-leaders-btn');
+      if (bLeaders) bLeaders.onclick = () => { state.tacticsSubTab = 'leaderboards'; render(); };
       const bBoard = document.getElementById('tst-board-btn');
       if (bBoard) bBoard.onclick = () => { state.tacticsSubTab = 'board'; render(); };
       const bFines = document.getElementById('tst-fines-btn');
       if (bFines) bFines.onclick = () => { state.tacticsSubTab = 'fines'; render(); };
-      const bLeaders = document.getElementById('tst-leaders-btn');
-      if (bLeaders) bLeaders.onclick = () => { state.tacticsSubTab = 'leaderboards'; render(); };
     }, 0);
 
     if (state.tacticsSubTab === 'board') {
@@ -4079,7 +4170,24 @@
           <button class="bc-btn small outline" style="padding:2px 8px; font-size:11px; height:24px;" id="tb-form-31">3-1 (Tree)</button>
         </div>
 
-        <div id="tactics-field" style="position:relative; width:100%; max-width:560px; height:380px; background:radial-gradient(circle, #40916C 0%, #1B4332 100%); border:4px solid #FFF; border-radius:12px; overflow:hidden; box-shadow:0 8px 20px rgba(0,0,0,0.15); user-select:none; margin:0 auto;">
+        <div id="tactics-field" style="position:relative; width:100%; max-width:560px; height:380px; background:radial-gradient(circle, rgba(255,255,255,0.12) 0%, rgba(0,0,0,0.35) 100%), repeating-linear-gradient(90deg, #1b4332, #1b4332 40px, #204f3a 40px, #204f3a 80px); border:4px solid #FFF; border-radius:16px; overflow:hidden; box-shadow:0 12px 28px rgba(0,0,0,0.22); user-select:none; margin:0 auto;">
+          <style>
+            .t-token {
+              transition: transform 0.12s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.12s ease;
+            }
+            .t-token:hover {
+              transform: translate(-50%, -50%) scale(1.18) !important;
+              box-shadow: 0 6px 16px rgba(0,0,0,0.45) !important;
+              filter: brightness(1.15);
+            }
+            .t-token:active {
+              cursor: grabbing !important;
+            }
+          </style>
+          
+          <div style="position:absolute; top:-2px; left:50%; width:80px; height:6px; border:2px solid rgba(255,255,255,0.70); border-bottom:none; transform:translateX(-50%); z-index:1; background:rgba(255,255,255,0.15);"></div>
+          <div style="position:absolute; bottom:-2px; left:50%; width:80px; height:6px; border:2px solid rgba(255,255,255,0.70); border-top:none; transform:translateX(-50%); z-index:1; background:rgba(255,255,255,0.15);"></div>
+          
           <div style="position:absolute; top:50%; left:0; right:0; height:0; border-top:2px solid rgba(255,255,255,0.6); transform:translateY(-50%); z-index:1;"></div>
           <div style="position:absolute; top:50%; left:50%; width:80px; height:80px; border:2px solid rgba(255,255,255,0.6); border-radius:50%; transform:translate(-50%, -50%); z-index:1;"></div>
           <div style="position:absolute; top:0; left:50%; width:160px; height:70px; border:2px solid rgba(255,255,255,0.6); border-top:none; border-radius:0 0 40px 40px; transform:translateX(-50%); z-index:1;"></div>
@@ -4089,27 +4197,29 @@
 
           <div id="t-tokens-container" style="position:absolute; top:0; left:0; width:100%; height:100%; z-index:3; pointer-events:${state.tacticsMode==='drag'?'auto':'none'};">
             ${state.tacticsTokens.map(tok => {
-              let bg = '#0c447c';
+              let bg = 'linear-gradient(135deg, #163c6d 0%, #0056b3 100%)';
               let border = '#FFF';
               let color = '#FFF';
               let size = '28px';
               let fSize = '10px';
               let z = '10';
+              let shadow = '0 3px 6px rgba(0,0,0,0.3)';
 
               if (tok.team === 'red') {
-                bg = '#993c1d';
+                bg = 'linear-gradient(135deg, #991b1b 0%, #dc2626 100%)';
               } else if (tok.team === 'ball') {
-                bg = '#FFA500';
-                border = '#000';
+                bg = '#FFFFFF';
+                border = '#1B4332';
                 color = '#000';
-                size = '20px';
+                size = '22px';
                 fSize = '12px';
                 z = '11';
+                shadow = '0 4px 8px rgba(0,0,0,0.45)';
               }
               
               const labelShort = tok.label.length > 5 ? tok.label.slice(0,4)+'..' : tok.label;
 
-              return `<div class="t-token" id="token-${tok.id}" style="position:absolute; top:${tok.top}%; left:${tok.left}%; transform:translate(-50%, -50%); width:${size}; height:${size}; border-radius:50%; background:${bg}; border:2px solid ${border}; color:${color}; font-size:${fSize}; font-weight:700; display:flex; align-items:center; justify-content:center; text-align:center; z-index:${z}; cursor:grab; box-shadow:0 3px 6px rgba(0,0,0,0.3); overflow:hidden; white-space:nowrap; text-overflow:ellipsis; padding:2px;" title="${escapeHtml(tok.label)}">
+              return `<div class="t-token" id="token-${tok.id}" style="position:absolute; top:${tok.top}%; left:${tok.left}%; transform:translate(-50%, -50%); width:${size}; height:${size}; border-radius:50%; background:${bg}; border:2px solid ${border}; color:${color}; font-size:${fSize}; font-weight:700; display:flex; align-items:center; justify-content:center; text-align:center; z-index:${z}; cursor:grab; box-shadow:${shadow}; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; padding:2px;" title="${escapeHtml(tok.label)}">
                 ${escapeHtml(labelShort)}
               </div>`;
             }).join('')}
@@ -4616,7 +4726,7 @@
           ${awardedBadges.length === 0 ? `<div style="font-size:11px; color:#8a877d; font-style:italic;">Chưa có huy hiệu nào được trao.</div>` : 
             awardedBadges.map(ab => `
               <div style="background:#FAF8F5; border:1px solid #E3E0D6; border-radius:8px; padding:6px 10px; font-size:12px; font-weight:600; display:flex; align-items:center; gap:6px;">
-                <span>🔵 ${escapeHtml(ab.name)}:</span>
+                <span>👤 ${escapeHtml(ab.name)}:</span>
                 <span style="display:flex; gap:4px;">
                   ${ab.list.map(b => `<span class="bc-badge" style="background:#EAF3DE; color:#27500A; font-size:11px; font-weight:700;">${escapeHtml(b)}</span>`).join('')}
                 </span>
@@ -5068,12 +5178,16 @@
           ? `${escapeHtml(m.name)} <span style="font-size:11px; color:#993C1D; font-style:italic;">(Đã xoá)</span>`
           : escapeHtml(m.name);
 
-        tbl.appendChild(el(`<tr style="border-top:1px solid #F1EFE8;">
-          <td style="padding:5px 4px; width:30px;">${avatarHtml(m, 26)}</td>
-          <td style="padding:5px 4px;">${nameLabel}</td>
+        const isSelfRow = state.me && state.me.id === m.id;
+        const rowStyle = isSelfRow ? 'background: rgba(64,145,108,0.08); font-weight: 600; border-left: 3px solid #40916C;' : '';
+        const displayName = isSelfRow ? `${nameLabel} <span class="bc-badge" style="background:#40916C; color:#FFF; font-size:10px; padding:1px 4px; margin-left:4px; font-weight:700; line-height:1;">Bạn</span>` : nameLabel;
+
+        tbl.appendChild(el(`<tr style="border-top:1px solid #F1EFE8; ${rowStyle}">
+          <td style="padding:5px 4px; width:30px; padding-left: ${isSelfRow ? '6px' : '4px'};">${avatarHtml(m, 26)}</td>
+          <td style="padding:5px 4px;">${displayName}</td>
           <td style="padding:5px 4px; color:#8a877d;">${t === 'fixed' ? 'Cố định' : 'Vãng lai'}</td>
           <td style="padding:5px 4px;">${passCell}</td>
-          <td style="padding:5px 4px; text-align:right;">${statusBadge}</td>
+          <td style="padding:5px 4px; text-align:right; padding-right: 6px;">${statusBadge}</td>
         </tr>`));
       });
       voteTable.appendChild(tbl);
