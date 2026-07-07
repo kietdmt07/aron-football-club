@@ -2780,7 +2780,7 @@
         if (btnQr) btnQr.onclick = () => {
           const isHidden = panelQr.style.display === 'none';
           panelQr.style.display = isHidden ? 'block' : 'none';
-          btnQr.textContent = isHidden ? 'Ẩn thông tin nộp tiền' : 'Nộp tiền & Lấy mã QR';
+          btnQr.textContent = isHidden ? 'Ẩn thông tin nộp tiền' : 'Nộp tiền qua QR';
           if (isHidden) {
             const r2PaidInput = document.getElementById('r2-paid');
             if (r2PaidInput) {
@@ -2813,6 +2813,11 @@
           
           msg.textContent = '';
           const transferAmount = Math.max(0, (r2Paid - (p.paid || 0)) + (r2Prepaid - (p.prepaid || 0)));
+          if (transferAmount <= 0) {
+            msg.style.color = '#993C1D';
+            msg.textContent = 'Số tiền chuyển khoản thêm yêu cầu phải lớn hơn 0đ.';
+            return;
+          }
           
           showPaymentQrDialog(transferAmount, note, async () => {
             showLoading('Đang gửi yêu cầu xác nhận chuyển tiền...');
@@ -2834,6 +2839,8 @@
             hideLoading();
             if (ok) {
               alert('Gửi yêu cầu chuyển tiền thành công! Vui lòng đợi Admin phê duyệt.');
+              panelQr.style.display = 'none';
+              btnQr.textContent = 'Nộp tiền qua QR';
             } else {
               alert('Có lỗi xảy ra khi gửi yêu cầu, vui lòng thử lại.');
             }
