@@ -260,6 +260,23 @@
   body.dark-theme [style*="border-bottom:1px solid #EFEDE3"], body.dark-theme [style*="border-bottom: 1px solid #EFEDE3"] { 
     border-bottom-color: var(--card-border) !important; 
   }
+  /* Bảng tin & Lịch hoạt động sắp tới */
+  .club-bulletin-card {
+    border: 2px solid rgba(27, 67, 50, 0.4);
+    background: linear-gradient(135deg, rgba(243, 249, 237, 0.95) 0%, rgba(255, 255, 255, 0.95) 100%);
+  }
+  body.dark-theme .club-bulletin-card {
+    border-color: var(--card-border) !important;
+    background: var(--card-bg) !important;
+  }
+  .upcoming-summary-card {
+    background: #1B4332;
+    border-left: 6px solid #D8973C;
+  }
+  body.dark-theme .upcoming-summary-card {
+    background: #122c21 !important;
+    border-left-color: #D8973C !important;
+  }
 </style>
 
 <script>
@@ -379,7 +396,9 @@
     sessionSearchDate: '', sessionSearchCourt: '', pastVisibleCount: 3,
     memberSearch: '', memberVisibleCount: 15,
     lastUpdated: {},
-    editingMemberId: null
+    editingMemberId: null,
+    expandedCosts: {},
+    announcements: []
   };
 
   // ---------- Quyền ----------
@@ -656,6 +675,7 @@
   const savePayments = () => save('bc_payments', state.payments);
   const saveFund = () => save('bc_fund', state.fund);
   const saveDonations = () => save('bc_donations', state.donations);
+  const saveAnnouncements = () => save('bc_announcements', state.announcements);
 
   function isMonthLocked(month) {
     return (state.settings.lockedMonths || []).includes(month);
@@ -1017,6 +1037,7 @@
       state.payments = dbMap['bc_payments'] || {};
       state.fund = dbMap['bc_fund'] || {};
       state.donations = dbMap['bc_donations'] || [];
+      state.announcements = dbMap['bc_announcements'] || [];
       state.paymentRequests = state.payments.paymentRequests || [];
     } catch (e) {
       console.error('loadAll thất bại, chuyển sang load tuần tự', e);
@@ -1035,6 +1056,7 @@
       state.payments = await loadKey('bc_payments', {});
       state.fund = await loadKey('bc_fund', {});
       state.donations = await loadKey('bc_donations', []);
+      state.announcements = await loadKey('bc_announcements', []);
       state.paymentRequests = state.payments.paymentRequests || [];
     }
 
@@ -1603,13 +1625,9 @@
       root.appendChild(errBanner);
       setTimeout(() => { const b = document.getElementById('bc-dismiss-err'); if (b) b.onclick = () => { state.saveError = null; render(); }; }, 0);
     }
-    if (state.tab === 'courts' && role() === 'r2') {
-      state.tab = 'sessions';
-    }
     root.appendChild(renderTabs());
     if (state.tab === 'sessions') root.appendChild(renderSessions());
     if (state.tab === 'members') root.appendChild(renderMembers());
-    if (state.tab === 'courts') root.appendChild(renderCourts());
     if (state.tab === 'fund') root.appendChild(renderFund());
     if (state.tab === 'payments_mgr') root.appendChild(renderPaymentsMgr());
     if (state.tab === 'tournament') root.appendChild(renderTournament());
@@ -2196,16 +2214,13 @@
 
   function renderTabs(){
     const wrap = el(`<div style="display:flex; gap:6px; margin-bottom:1rem; border-bottom:1px solid #E3E0D6; padding-bottom:0.75rem;"></div>`);
-    let tabs = [['sessions','Lịch đá bóng'],['tactics','Sa bàn & Giải trí'],['tournament','Giải đấu'],['members','Thành viên'],['courts','Sân bóng'],['fund','Quỹ & chi phí']];
-    if (role() === 'r2') {
-      tabs = tabs.filter(t => t[0] !== 'courts');
-    }
+    let tabs = [['sessions','Lịch đá bóng'],['tactics','Sa bàn & Giải trí'],['tournament','Giải đấu'],['members','Thành viên'],['fund','Quỹ & chi phí']];
     if (canManage()) {
-      tabs.push(['payments_mgr', 'Duyệt & Cấu hình QR']);
+      tabs.push(['payments_mgr', 'Duyệt & Cấu hình']);
     }
     tabs.forEach(([key,label]) => {
       const t = el(`<div class="bc-tab ${state.tab===key?'active':''}">${label}</div>`);
-      t.onclick = () => { state.tab = key; render(); refreshAll(); };
+      t.onclick = () => { state.tab = key; state.expandedCosts = {}; render(); refreshAll(); };
       wrap.appendChild(t);
     });
     return wrap;
@@ -2393,7 +2408,7 @@
     
     if (isOwner(m)) {
       borderStyle = `border: 2px solid #D8973C; box-shadow: 0 0 6px rgba(216, 151, 60, 0.4);`;
-      overlayEmoji = `<span style="position:absolute; top:-6px; right:-6px; font-size:12px; line-height:1; z-index:2;">👑</span>`;
+      overlayEmoji = ``;
     } else if (m.role === 'admin') {
       borderStyle = `border: 2px solid #993C1D;`;
       overlayEmoji = `<span style="position:absolute; top:-6px; right:-6px; font-size:12px; line-height:1; z-index:2;">⭐</span>`;
@@ -2710,65 +2725,7 @@
     return row;
   }
 
-  // ---------- COURTS ----------
-  function renderCourts(){
-    const wrap = el(`<div></div>`);
-    if (canManage()) {
-      const form = el(`<div class="bc-card">
-        <h3 style="font-size:15px; margin-bottom:10px; color:#1B4332;">Thêm sân bóng</h3>
-        <div style="display:flex; flex-direction:column; gap:8px;">
-          <input class="bc-input" id="ct-name" placeholder="Tên sân" />
-          <input class="bc-input" id="ct-address" placeholder="Địa chỉ" />
-          <input class="bc-input" id="ct-maplink" placeholder="Link Google Maps (dán link chia sẻ từ Google Maps)" />
-          <div style="display:flex; gap:8px;">
-            <input class="bc-input" id="ct-price" placeholder="Giá / giờ (vd: 120.000đ)" />
-            <input class="bc-input" id="ct-phone" placeholder="SĐT liên hệ" />
-          </div>
-          <button class="bc-btn" id="ct-add" style="align-self:flex-start;">Thêm sân</button>
-        </div>
-      </div>`);
-      wrap.appendChild(form);
-      setTimeout(() => {
-        document.getElementById('ct-add').onclick = () => {
-          const name = document.getElementById('ct-name').value.trim();
-          if (!name) return;
-          state.courts.push({
-            id: uid(), name,
-            address: document.getElementById('ct-address').value.trim(),
-            mapLink: document.getElementById('ct-maplink').value.trim(),
-            price: document.getElementById('ct-price').value.trim(),
-            phone: document.getElementById('ct-phone').value.trim()
-          });
-          saveCourts(); render();
-        };
-      }, 0);
-    }
 
-    if (state.courts.length === 0) {
-      wrap.appendChild(el(`<div class="bc-empty">Chưa có sân nào được lưu.</div>`));
-    } else {
-      state.courts.slice().reverse().forEach(c => {
-        const row = el(`<div class="bc-card">
-          <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-            <div>
-              <div style="font-weight:500; font-size:14px;">${escapeHtml(c.name)}</div>
-              <div style="font-size:13px; color:#6b7a73; margin-top:2px;">${escapeHtml(c.address || '')}</div>
-              <div style="font-size:13px; color:#8a877d; margin-top:2px;">${c.price ? 'Giá: ' + escapeHtml(c.price) : ''} ${c.phone ? ' · ĐT: ' + escapeHtml(c.phone) : ''}</div>
-              ${c.mapLink ? `<a href="${escapeHtml(c.mapLink)}" target="_blank" style="font-size:13px; color:#0C447C; margin-top:4px; display:inline-block;">📍 Xem trên Google Maps</a>` : ''}
-            </div>
-            ${canDelete() ? `<button class="bc-btn danger small" data-id="${c.id}">Xoá</button>` : ''}
-          </div>
-        </div>`);
-        if (canDelete()) row.querySelector('button').onclick = () => {
-          if (!confirm(`Bạn có chắc chắn muốn xóa sân "${c.name}"?`)) return;
-          state.courts = state.courts.filter(x => x.id !== c.id);
-          saveCourts(); render();
-        };
-        wrap.appendChild(row);
-      });
-    }
-    return wrap;
-  }
 
   // ---------- QUỸ & CHI PHÍ ----------
   function computeMemberMonthSummary(month){
@@ -3538,6 +3495,57 @@
     </div>`);
     
     wrap.appendChild(configSection);
+
+    // 3. Cấu hình chi phí thành viên vãng lai
+    const settingsCard = el(`<div class="bc-card">
+      <h3 style="font-size:15px; color:#1B4332; margin-bottom:8px;">Cấu hình chi phí thành viên vãng lai</h3>
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:13px; color:var(--text-primary);">
+        <span>Thành viên vãng lai trả gấp</span>
+        <input class="bc-input" id="cfg-multiplier" type="number" step="0.1" min="1" value="${state.settings.casualMultiplier || 1.5}" style="width:70px; padding:5px 8px;" ${isR1 ? 'disabled style="opacity:0.75;"' : ''} />
+        <span>lần so với cố định (áp dụng mọi buổi)</span>
+      </div>
+    </div>`);
+    wrap.appendChild(settingsCard);
+
+    // 4. Cấu hình Logo & Banner
+    const brandCard = el(`<div class="bc-card">
+      <h3 style="font-size:15px; margin-bottom:10px; color:#1B4332;">Logo &amp; banner màn hình đăng nhập</h3>
+      <div style="display:flex; gap:16px; flex-wrap:wrap; align-items:flex-start;">
+        <div>
+          <div style="font-size:12px; color:#8a877d; margin-bottom:4px;">Logo (ảnh vuông nhỏ)</div>
+          ${state.settings.logoUrl ? `<img src="${state.settings.logoUrl}" style="width:56px; height:56px; object-fit:cover; border-radius:50%; margin-bottom:6px; display:block;" />` : ''}
+          <input type="file" accept="image/*" id="brand-logo-input" style="font-size:12px;" ${isR1 ? 'disabled style="opacity:0.75;"' : ''} />
+        </div>
+        <div>
+          <div style="font-size:12px; color:#8a877d; margin-bottom:4px;">Banner (ảnh ngang)</div>
+          ${state.settings.bannerUrl ? `<img src="${state.settings.bannerUrl}" style="width:160px; height:50px; object-fit:cover; border-radius:8px; margin-bottom:6px; display:block;" />` : ''}
+          <input type="file" accept="image/*" id="brand-banner-input" style="font-size:12px;" ${isR1 ? 'disabled style="opacity:0.75;"' : ''} />
+        </div>
+      </div>
+      <div style="font-size:12px; color:#8a877d; margin-top:8px;">Chọn ảnh nhẹ (dưới ~1MB) để tránh lưu trữ quá nặng.</div>
+    </div>`);
+    wrap.appendChild(brandCard);
+
+    // 5. Cấu hình Sân bóng
+    const courtsCard = el(`<div class="bc-card">
+      <h3 style="font-size:15px; margin-bottom:10px; color:#1B4332;">Cấu hình Sân bóng</h3>
+      <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px;">
+        <div style="font-weight:600; font-size:13px; color:var(--text-primary); margin-bottom:4px;">Thêm sân bóng mới:</div>
+        <input class="bc-input" id="ct-name" placeholder="Tên sân" ${isR1 ? 'disabled style="opacity:0.75;"' : ''} />
+        <input class="bc-input" id="ct-address" placeholder="Địa chỉ" ${isR1 ? 'disabled style="opacity:0.75;"' : ''} />
+        <input class="bc-input" id="ct-maplink" placeholder="Link Google Maps (dán link chia sẻ từ Google Maps)" ${isR1 ? 'disabled style="opacity:0.75;"' : ''} />
+        <div style="display:flex; gap:8px;">
+          <input class="bc-input" id="ct-price" placeholder="Giá / giờ (vd: 120.000đ)" ${isR1 ? 'disabled style="opacity:0.75;"' : ''} style="flex:1;" />
+          <input class="bc-input" id="ct-phone" placeholder="SĐT liên hệ" ${isR1 ? 'disabled style="opacity:0.75;"' : ''} style="flex:1;" />
+        </div>
+        ${isR1 ? '' : `<button class="bc-btn" id="ct-add" style="align-self:flex-start; margin-top:4px;">Thêm sân</button>`}
+      </div>
+      <div style="border-top:1px dashed #E3E0D6; padding-top:10px;">
+        <div style="font-weight:600; font-size:13px; color:var(--text-primary); margin-bottom:8px;">Danh sách sân bóng:</div>
+        <div id="ct-list"></div>
+      </div>
+    </div>`);
+    wrap.appendChild(courtsCard);
     
     setTimeout(() => {
       const cfgSaveBtn = document.getElementById('cfg-save-btn');
@@ -3585,6 +3593,104 @@
           hideLoading();
         }
       };
+
+      if (!isR1) {
+        const multInput = document.getElementById('cfg-multiplier');
+        if (multInput) {
+          multInput.onchange = async (e) => {
+            const v = parseFloat(e.target.value);
+            state.settings.casualMultiplier = isNaN(v) || v < 1 ? 1 : v;
+            await saveSettings();
+            render();
+          };
+        }
+
+        const logoInput = document.getElementById('brand-logo-input');
+        if (logoInput) {
+          logoInput.onchange = async (e) => {
+            const f = e.target.files[0]; if (!f) return;
+            try {
+              showLoading('Đang nén và tải ảnh Logo lên...');
+              const url = await compressImage(f, 150, 150, 0.7);
+              state.settings.logoUrl = url;
+              await saveSettings();
+              render();
+            } catch(err) {
+              console.error(err);
+              alert('Lỗi nén ảnh Logo.');
+            } finally {
+              hideLoading();
+            }
+          };
+        }
+
+        const bannerInput = document.getElementById('brand-banner-input');
+        if (bannerInput) {
+          bannerInput.onchange = async (e) => {
+            const f = e.target.files[0]; if (!f) return;
+            try {
+              showLoading('Đang nén và tải ảnh Banner lên...');
+              const url = await compressImage(f, 800, 450, 0.7);
+              state.settings.bannerUrl = url;
+              await saveSettings();
+              render();
+            } catch(err) {
+              console.error(err);
+              alert('Lỗi nén ảnh Banner.');
+            } finally {
+              hideLoading();
+            }
+          };
+        }
+      }
+
+      if (!isR1) {
+        const ctAddBtn = document.getElementById('ct-add');
+        if (ctAddBtn) {
+          ctAddBtn.onclick = () => {
+            const name = document.getElementById('ct-name').value.trim();
+            if (!name) return;
+            state.courts.push({
+              id: uid(), name,
+              address: document.getElementById('ct-address').value.trim(),
+              mapLink: document.getElementById('ct-maplink').value.trim(),
+              price: document.getElementById('ct-price').value.trim(),
+              phone: document.getElementById('ct-phone').value.trim()
+            });
+            saveCourts(); render();
+          };
+        }
+      }
+
+      const ctList = document.getElementById('ct-list');
+      if (ctList) {
+        if (state.courts.length === 0) {
+          ctList.appendChild(el(`<div style="font-size:13px; color:#8a877d; font-style:italic; padding: 4px 0;">Chưa có sân nào được lưu.</div>`));
+        } else {
+          state.courts.slice().reverse().forEach(c => {
+            const row = el(`<div style="display:flex; justify-content:space-between; align-items:flex-start; border-top:1px solid #F1EFE8; padding:8px 0; font-size:13px;">
+              <div>
+                <div style="font-weight:500;">${escapeHtml(c.name)}</div>
+                <div style="font-size:12px; color:#6b7a73; margin-top:2px;">${escapeHtml(c.address || '')}</div>
+                <div style="font-size:12px; color:#8a877d; margin-top:2px;">${c.price ? 'Giá: ' + escapeHtml(c.price) : ''} ${c.phone ? ' · ĐT: ' + escapeHtml(c.phone) : ''}</div>
+                ${c.mapLink ? `<a href="${escapeHtml(c.mapLink)}" target="_blank" style="font-size:12px; color:#0C447C; margin-top:4px; display:inline-block;">📍 Xem trên Google Maps</a>` : ''}
+               </div>
+               ${canDelete() && !isR1 ? `<button class="bc-btn danger small" id="ct-del-${c.id}">Xoá</button>` : ''}
+            </div>`);
+            if (canDelete() && !isR1) {
+              setTimeout(() => {
+                const delBtn = document.getElementById(`ct-del-${c.id}`);
+                if (delBtn) delBtn.onclick = () => {
+                  if (!confirm(`Bạn có chắc chắn muốn xóa sân "${c.name}"?`)) return;
+                  state.courts = state.courts.filter(x => x.id !== c.id);
+                  saveCourts(); render();
+                };
+              }, 0);
+            }
+            ctList.appendChild(row);
+          });
+        }
+      }
     }, 0);
 
     return wrap;
@@ -5081,65 +5187,216 @@
   function renderSessions(){
     const wrap = el(`<div></div>`);
 
-    if (canManage()) {
-      const settingsCard = el(`<div class="bc-card" style="background:#F4F1EA; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-        <span style="font-size:13px; color:#6b7a73;">Thành viên vãng lai trả gấp</span>
-        <input class="bc-input" id="ss-multiplier" type="number" step="0.1" min="1" value="${state.settings.casualMultiplier}" style="width:70px; padding:5px 8px;" />
-        <span style="font-size:13px; color:#6b7a73;">lần so với cố định (áp dụng mọi buổi)</span>
-      </div>`);
-      wrap.appendChild(settingsCard);
+    // 1. Tự động xóa thông báo hết hạn
+    const todayStr = (new Date()).toISOString().slice(0, 10);
+    state.announcements = state.announcements || [];
+    const validAnnouncements = state.announcements.filter(a => {
+      if (a.expireDate && a.expireDate < todayStr) return false;
+      return true;
+    });
 
-      const brandCard = el(`<div class="bc-card">
-        <h3 style="font-size:15px; margin-bottom:10px; color:#1B4332;">Logo &amp; banner màn hình đăng nhập</h3>
-        <div style="display:flex; gap:16px; flex-wrap:wrap; align-items:flex-start;">
+    if (validAnnouncements.length !== state.announcements.length) {
+      state.announcements = validAnnouncements;
+      saveAnnouncements();
+    }
+
+    // --- RENDER BẢNG TIN THÔNG BÁO ---
+    const showAnnounceFormKey = 'show_announce_form';
+    const announceFormVisible = !!state[showAnnounceFormKey];
+    
+    const bulletinCard = el(`<div class="bc-card club-bulletin-card">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <h2 style="font-size:15px; color:#1B4332; font-weight:600; display:flex; align-items:center; gap:6px; font-family:'Oswald', sans-serif; margin:0;">
+          📢 BẢNG TIN CÂU LẠC BỘ
+        </h2>
+        ${canManage() ? `<button class="bc-btn small" id="ann-toggle-btn" style="padding:3px 8px; font-size:11px; font-weight:600;">
+          ${announceFormVisible ? 'Đóng form' : '➕ Đăng tin'}
+        </button>` : ''}
+      </div>
+      <div id="ann-form-container"></div>
+      <div id="ann-list-container" style="display:flex; flex-direction:column; gap:10px; margin-top:8px;"></div>
+    </div>`);
+
+    // Form đăng thông báo dành cho Admin/R1
+    if (canManage() && announceFormVisible) {
+      const annForm = el(`<div style="background:var(--input-bg); border:1px solid var(--card-border); padding:12px; border-radius:10px; display:flex; flex-direction:column; gap:8px; margin-bottom:10px;">
+        <div style="font-weight:600; font-size:13px; color:#1B4332;">✍️ ĐĂNG THÔNG BÁO MỚI</div>
+        
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; flex-wrap:wrap;">
           <div>
-            <div style="font-size:12px; color:#8a877d; margin-bottom:4px;">Logo (ảnh vuông nhỏ)</div>
-            ${state.settings.logoUrl ? `<img src="${state.settings.logoUrl}" style="width:56px; height:56px; object-fit:cover; border-radius:50%; margin-bottom:6px; display:block;" />` : ''}
-            <input type="file" accept="image/*" id="brand-logo-input" style="font-size:12px;" />
+            <label style="font-size:11px; color:#8a877d; display:block; margin-bottom:2px;">Phân loại tin:</label>
+            <select class="bc-select" id="ann-category" style="width:100%; padding:5px 8px; font-size:12px;">
+              <option value="general">📢 Thông báo chung</option>
+              <option value="alert">🚨 Cảnh báo quan trọng</option>
+              <option value="match">🔥 Kèo giao lưu</option>
+              <option value="party">🎉 Tin vui / Ăn chơi</option>
+              <option value="tournament">🏆 Giải đấu / Sự kiện</option>
+            </select>
           </div>
           <div>
-            <div style="font-size:12px; color:#8a877d; margin-bottom:4px;">Banner (ảnh ngang)</div>
-            ${state.settings.bannerUrl ? `<img src="${state.settings.bannerUrl}" style="width:160px; height:50px; object-fit:cover; border-radius:8px; margin-bottom:6px; display:block;" />` : ''}
-            <input type="file" accept="image/*" id="brand-banner-input" style="font-size:12px;" />
+            <label style="font-size:11px; color:#8a877d; display:block; margin-bottom:2px;">Ngày hết hạn (tự xóa):</label>
+            <input class="bc-input" type="date" id="ann-expire" style="width:100%; padding:4px 6px; font-size:12px;" />
           </div>
         </div>
-        <div style="font-size:12px; color:#8a877d; margin-top:8px;">Chọn ảnh nhẹ (dưới ~1MB) để tránh lưu trữ quá nặng.</div>
+
+        <div>
+          <label style="font-size:11px; color:#8a877d; display:block; margin-bottom:2px;">Tiêu đề:</label>
+          <input class="bc-input" id="ann-title" placeholder="Ví dụ: Lịch đóng tiền quỹ tháng này" style="width:100%; padding:6px 8px; font-size:13px;" />
+        </div>
+
+        <div>
+          <label style="font-size:11px; color:#8a877d; display:block; margin-bottom:2px;">Nội dung chi tiết:</label>
+          <textarea class="bc-input" id="ann-content" placeholder="Nội dung thông báo chi tiết..." rows="3" style="width:100%; padding:6px 8px; font-family:inherit; font-size:13px; resize:vertical;"></textarea>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-top:4px;">
+          <label style="display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; cursor:pointer; color:#B25E00;">
+            <input type="checkbox" id="ann-pin" style="transform: scale(1.1);" />
+            📌 Ghim tin lên đầu bảng
+          </label>
+          <button class="bc-btn small" id="ann-submit" style="padding:6px 16px; font-weight:600;">⚡ Đăng tin!</button>
+        </div>
       </div>`);
-      wrap.appendChild(brandCard);
+      bulletinCard.querySelector('#ann-form-container').appendChild(annForm);
+    }
 
-      setTimeout(() => {
-        document.getElementById('brand-logo-input').onchange = async (e) => {
-          const f = e.target.files[0]; if (!f) return;
-          try {
-            showLoading('Đang nén và tải ảnh Logo lên...');
-            const url = await compressImage(f, 150, 150, 0.7);
-            state.settings.logoUrl = url;
-            await saveSettings();
-            render();
-          } catch(err) {
-            console.error(err);
-            alert('Lỗi nén ảnh Logo.');
-          } finally {
-            hideLoading();
-          }
-        };
-        document.getElementById('brand-banner-input').onchange = async (e) => {
-          const f = e.target.files[0]; if (!f) return;
-          try {
-            showLoading('Đang nén và tải ảnh Banner lên...');
-            const url = await compressImage(f, 800, 450, 0.7);
-            state.settings.bannerUrl = url;
-            await saveSettings();
-            render();
-          } catch(err) {
-            console.error(err);
-            alert('Lỗi nén ảnh Banner.');
-          } finally {
-            hideLoading();
-          }
-        };
-      }, 0);
+    const CATEGORIES = {
+      general: { label: 'Thông báo chung', icon: '📢', color: '#134074', bg: '#E6F1FB' },
+      alert: { label: 'Cảnh báo quan trọng', icon: '🚨', color: '#993C1D', bg: '#FAECE7' },
+      match: { label: 'Kèo giao lưu', icon: '🔥', color: '#B25E00', bg: '#FFF2E6' },
+      party: { label: 'Tin vui / Ăn chơi', icon: '🎉', color: '#6A2A80', bg: '#F8EEFC' },
+      tournament: { label: 'Giải đấu / Sự kiện', icon: '🏆', color: '#27500A', bg: '#EAF3DE' }
+    };
 
+    const formatDateTime = (ts) => {
+      if (!ts) return 'N/A';
+      const d = new Date(ts);
+      const hrs = String(d.getHours()).padStart(2, '0');
+      const mins = String(d.getMinutes()).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      const mon = String(d.getMonth() + 1).padStart(2, '0');
+      const yr = d.getFullYear();
+      return `${hrs}:${mins} ngày ${day}/${mon}/${yr}`;
+    };
+
+    // Danh sách thông báo
+    const annListContainer = bulletinCard.querySelector('#ann-list-container');
+    if (state.announcements.length === 0) {
+      annListContainer.appendChild(el(`<div style="font-size:12px; color:#8a877d; text-align:center; padding:12px; font-style:italic;">Hôm nay chưa có thông báo mới nào từ Ban chủ nhiệm. ⚽</div>`));
+    } else {
+      const sortedAnnouncements = state.announcements.slice().sort((a, b) => {
+        if (!!a.pinned !== !!b.pinned) {
+          return a.pinned ? -1 : 1;
+        }
+        return (b.createdAt || 0) - (a.createdAt || 0);
+      });
+
+      sortedAnnouncements.forEach(a => {
+        const cat = CATEGORIES[a.category || 'general'] || CATEGORIES.general;
+        
+        let borderStyle = '1px solid #E3E0D6';
+        let cardBg = '#FAF8F5';
+        let pinBadge = '';
+        
+        if (a.pinned) {
+          borderStyle = '2px solid #D8973C';
+          cardBg = 'linear-gradient(135deg, #FFFDF5 0%, #FFF9E6 100%)';
+          pinBadge = `<span style="background:#FFF3D6; color:#B25E00; font-size:10px; font-weight:700; padding:2px 6px; border-radius:4px; border:1px solid #F3D29B; display:inline-flex; align-items:center; gap:2px;">📌 GHIM</span>`;
+        }
+
+        const heartList = (a.reactions && a.reactions.heart) || [];
+        const thumbsList = (a.reactions && a.reactions.thumbs) || [];
+        const fireList = (a.reactions && a.reactions.fire) || [];
+        
+        const myName = state.me ? state.me.name : 'Khách';
+        const myReactedHeart = heartList.includes(myName);
+        const myReactedThumbs = thumbsList.includes(myName);
+        const myReactedFire = fireList.includes(myName);
+
+        const item = el(`<div style="background:${cardBg}; border:${borderStyle}; border-radius:12px; padding:12px; display:flex; flex-direction:column; gap:6px; position:relative; box-shadow: ${a.pinned ? '0 4px 10px rgba(216,151,60,0.1)' : 'none'}; text-align:left;">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span class="bc-badge" style="background:${cat.bg}; color:${cat.color}; font-weight:700; font-size:10px; padding:2px 8px; border:1px solid rgba(0,0,0,0.05);">
+                ${cat.icon} ${cat.label}
+              </span>
+              ${pinBadge}
+            </div>
+            <span style="font-size:11px; color:#8a877d; font-style:italic;">📅 Đăng: ${formatDateTime(a.createdAt)}</span>
+          </div>
+
+          <div style="font-weight:700; font-size:14px; color:#1B4332; margin-top:2px;">
+            ${escapeHtml(a.title)}
+          </div>
+          
+          <div style="font-size:13px; color:#4A5568; line-height:1.45; white-space:pre-line;">
+            ${escapeHtml(a.content)}
+          </div>
+
+          <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px dashed #E3E0D6; padding-top:8px; margin-top:4px; flex-wrap:wrap; gap:8px;">
+            <div style="display:flex; gap:6px; align-items:center;">
+              <button class="bc-btn outline small" id="react-thumbs-${a.id}" style="padding:2px 8px; font-size:11px; display:inline-flex; align-items:center; gap:4px; background:${myReactedThumbs ? 'rgba(19,64,116,0.1)' : 'transparent'}; border-color:${myReactedThumbs ? '#134074' : '#C4C2B7'}; color:${myReactedThumbs ? '#134074' : '#6b7a73'}; font-weight:${myReactedThumbs ? 'bold' : 'normal'};">
+                👍 <span>${thumbsList.length}</span>
+              </button>
+              <button class="bc-btn outline small" id="react-heart-${a.id}" style="padding:2px 8px; font-size:11px; display:inline-flex; align-items:center; gap:4px; background:${myReactedHeart ? 'rgba(230,10,10,0.08)' : 'transparent'}; border-color:${myReactedHeart ? '#E60A0A' : '#C4C2B7'}; color:${myReactedHeart ? '#E60A0A' : '#6b7a73'}; font-weight:${myReactedHeart ? 'bold' : 'normal'};">
+                ❤️ <span>${heartList.length}</span>
+              </button>
+              <button class="bc-btn outline small" id="react-fire-${a.id}" style="padding:2px 8px; font-size:11px; display:inline-flex; align-items:center; gap:4px; background:${myReactedFire ? 'rgba(242,100,25,0.08)' : 'transparent'}; border-color:${myReactedFire ? '#F26419' : '#C4C2B7'}; color:${myReactedFire ? '#F26419' : '#6b7a73'}; font-weight:${myReactedFire ? 'bold' : 'normal'};">
+                🔥 <span>${fireList.length}</span>
+              </button>
+            </div>
+            
+            <div style="font-size:11px; color:#8a877d; text-align:right;">
+              ✍️ Bởi: <strong>${escapeHtml(a.author)}</strong> · 📞 <a href="tel:${escapeHtml(a.phone)}" style="color:#0C447C; font-weight:500;">${escapeHtml(a.phone)}</a>
+              ${a.expireDate ? ` · ⏳ Hạn: ${formatDate(a.expireDate)}` : ''}
+            </div>
+          </div>
+          
+          ${canManage() ? `<button class="bc-btn danger small" id="ann-del-${a.id}" style="position:absolute; top:8px; right:8px; padding:2px 6px; font-size:10px;">Xóa</button>` : ''}
+        </div>`);
+        annListContainer.appendChild(item);
+      });
+    }
+    wrap.appendChild(bulletinCard);
+
+    // --- RENDER LỊCH HOẠT ĐỘNG SẮP TỚI ---
+    const nowStamp = (new Date()).toISOString().slice(0,16).replace('T','');
+    const upcomingSessions = state.sessions
+      .filter(s => (s.date + (s.time||'00:00')) >= nowStamp)
+      .sort((a,b) => (a.date+a.time).localeCompare(b.date+b.time));
+
+    if (upcomingSessions.length > 0) {
+      const nearest = upcomingSessions[0];
+      const yesVoters = Object.entries(nearest.votes).filter(([,v]) => v === 'yes').map(([name]) => name);
+      const nearestCourt = state.courts.find(c => c.id === nearest.courtId);
+      
+      const summaryCard = el(`<div class="bc-card upcoming-summary-card" style="border:none; border-radius:12px; padding:16px; color:#FAF8F5; margin-bottom:1rem; box-shadow:0 4px 15px rgba(0,0,0,0.15); text-align:left;">
+        <div style="font-size:13px; font-weight:600; color:#D8973C; margin-bottom:8px; display:flex; align-items:center; gap:6px; font-family:'Oswald', sans-serif; text-transform:uppercase; letter-spacing:0.5px;">
+          📅 Lịch hoạt động sắp tới
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <div style="font-size:17px; font-weight:700; color:#FFF; font-family:'Outfit', sans-serif;">
+              ${escapeHtml(nearest.note || 'Buổi sinh hoạt thường kỳ')}
+            </div>
+            <div style="font-size:13px; color:#CCD2E3; display:flex; align-items:center; gap:6px;">
+              <span>📅</span> <strong>${weekdayLabel(nearest.date)}, ${formatDate(nearest.date)}</strong>
+            </div>
+            <div style="font-size:13px; color:#CCD2E3; display:flex; align-items:center; gap:6px;">
+              <span>⏰</span> <strong>Giờ: ${formatTimeRange(nearest.time, nearest.timeEnd)}</strong>
+            </div>
+            <div style="font-size:13px; color:#CCD2E3; display:flex; align-items:center; gap:6px;">
+              <span>📍</span> <strong>Sân: ${nearestCourt ? escapeHtml(nearestCourt.name) : 'Chưa chọn sân'}</strong>
+            </div>
+          </div>
+          <div style="background:rgba(216,151,96,0.15); color:#D8973C; border:1px solid rgba(216,151,96,0.3); border-radius:20px; padding:4px 10px; font-size:12px; font-weight:700; display:flex; align-items:center; gap:4px; align-self:center;">
+            🔥 ${yesVoters.length} đã tham gia
+          </div>
+        </div>
+      </div>`);
+      wrap.appendChild(summaryCard);
+    }
+
+    if (canManage()) {
       const courtOptions = state.courts.length
         ? state.courts.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('')
         : `<option value="">(chưa có sân, thêm ở tab Sân bóng)</option>`;
@@ -5169,11 +5426,7 @@
         };
         document.getElementById('ss-date').oninput = updatePreview;
         updatePreview();
-        document.getElementById('ss-multiplier').onchange = (e) => {
-          const v = parseFloat(e.target.value);
-          state.settings.casualMultiplier = isNaN(v) || v < 1 ? 1 : v;
-          saveSettings(); render();
-        };
+
         document.getElementById('ss-add').onclick = () => {
           const date = document.getElementById('ss-date').value;
           const time = document.getElementById('ss-time').value;
@@ -5189,7 +5442,6 @@
       }, 0);
     }
 
-    const nowStamp = (new Date()).toISOString().slice(0,16).replace('T','');
     let all = state.sessions.slice();
 
     // --- Thanh lọc ---
@@ -5206,6 +5458,84 @@
     </div>`);
     wrap.appendChild(searchCard);
     setTimeout(() => {
+      // --- Sự kiện bảng tin ---
+      const annToggleBtn = document.getElementById('ann-toggle-btn');
+      if (annToggleBtn) {
+        annToggleBtn.onclick = () => {
+          state['show_announce_form'] = !state['show_announce_form'];
+          render();
+        };
+      }
+
+      const annSubmitBtn = document.getElementById('ann-submit');
+      if (annSubmitBtn) {
+        annSubmitBtn.onclick = () => {
+          const category = document.getElementById('ann-category').value;
+          const title = document.getElementById('ann-title').value.trim();
+          const content = document.getElementById('ann-content').value.trim();
+          const expireDate = document.getElementById('ann-expire').value;
+          const pinned = document.getElementById('ann-pin').checked;
+          
+          if (!title || !content) {
+            alert('Vui lòng nhập đầy đủ tiêu đề và nội dung thông báo.');
+            return;
+          }
+          
+          state.announcements = state.announcements || [];
+          state.announcements.push({
+            id: uid(),
+            category,
+            title,
+            content,
+            expireDate: expireDate || null,
+            pinned: !!pinned,
+            author: state.me ? state.me.name : 'Khách',
+            phone: state.me ? state.me.phone || 'N/A' : 'N/A',
+            createdAt: Date.now(),
+            reactions: { thumbs: [], heart: [], fire: [] }
+          });
+          
+          state['show_announce_form'] = false;
+          saveAnnouncements();
+          render();
+        };
+      }
+
+      (state.announcements || []).forEach(a => {
+        const delBtn = document.getElementById(`ann-del-${a.id}`);
+        if (delBtn) {
+          delBtn.onclick = () => {
+            if (!confirm('Bạn có chắc chắn muốn xóa thông báo này?')) return;
+            state.announcements = state.announcements.filter(x => x.id !== a.id);
+            saveAnnouncements();
+            render();
+          };
+        }
+
+        const toggleReact = (type) => {
+          const myName = state.me ? state.me.name : 'Khách';
+          a.reactions = a.reactions || { thumbs: [], heart: [], fire: [] };
+          const list = a.reactions[type] || [];
+          if (list.includes(myName)) {
+            a.reactions[type] = list.filter(n => n !== myName);
+          } else {
+            list.push(myName);
+            a.reactions[type] = list;
+          }
+          saveAnnouncements();
+          render();
+        };
+
+        const thumbsBtn = document.getElementById(`react-thumbs-${a.id}`);
+        if (thumbsBtn) thumbsBtn.onclick = () => toggleReact('thumbs');
+
+        const heartBtn = document.getElementById(`react-heart-${a.id}`);
+        if (heartBtn) heartBtn.onclick = () => toggleReact('heart');
+
+        const fireBtn = document.getElementById(`react-fire-${a.id}`);
+        if (fireBtn) fireBtn.onclick = () => toggleReact('fire');
+      });
+
       document.getElementById('search-btn').onclick = () => {
         state.sessionSearchDate = document.getElementById('search-month').value;
         state.sessionSearchCourt = document.getElementById('search-court').value;
@@ -5517,9 +5847,24 @@
     }
 
     const costBox = card.querySelector(`#cost-${s.id}`);
+    costBox.innerHTML = '';
+
     s.costs = s.costs || { court: 0, water: 0, shuttle: 0, other: 0 };
     s.flatRate = s.flatRate || { enabled: false, fixed: 0, casual: 0 };
     s.penalties = s.penalties || {};
+    state.expandedCosts = state.expandedCosts || {};
+    const isExpanded = !!state.expandedCosts[s.id];
+
+    const collapsibleHeader = el(`<div style="display:flex; justify-content:space-between; align-items:center; background:#FAF8F5; border:1px solid #E3E0D6; border-radius:8px; padding:8px 12px; margin-bottom:0px;">
+      <span style="font-weight:600; font-size:13px; color:#1B4332; display:flex; align-items:center; gap:6px;">💰 CHI PHÍ &amp; PHẠT TRỄ</span>
+      <button class="bc-btn outline small" id="toggle-cost-${s.id}" style="padding:4px 8px; font-size:12px; display:flex; align-items:center; gap:4px; height: 26px; border-color:#CBD5E1;">
+        ${isExpanded ? 'Ẩn chi phí ✖' : 'Xem chi phí 👁'}
+      </button>
+    </div>`);
+    costBox.appendChild(collapsibleHeader);
+
+    const collapsibleContent = el(`<div style="display:${isExpanded ? 'block' : 'none'}; margin-top:10px; border:1px solid #E3E0D6; border-radius:8px; padding:12px; background:#FAF8F5;"></div>`);
+    costBox.appendChild(collapsibleContent);
 
     // --- Tiêu đề + nút chuyển chế độ (R1/Admin) ---
     const costModeBar = el(`<div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:8px;">
@@ -5529,7 +5874,7 @@
         <button class="bc-btn ${s.flatRate.enabled?'':'outline'} small" id="mode-flat-${s.id}">Áp mức cố định</button>
       </div>` : `<span class="bc-badge" style="background:#E6F1FB; color:#0C447C;">${s.flatRate.enabled ? 'Áp mức cố định' : 'Chia chi phí'}</span>`}
     </div>`);
-    costBox.appendChild(costModeBar);
+    collapsibleContent.appendChild(costModeBar);
 
     if (canManage()) setTimeout(() => {
       const btnSplit = document.getElementById(`mode-split-${s.id}`);
@@ -5548,7 +5893,7 @@
             <input class="bc-input" type="number" min="0" id="flat-casual-${s.id}" value="${s.flatRate.casual||0}" style="width:130px;" /></div>
           <button class="bc-btn small" id="flat-save-${s.id}" style="align-self:flex-end;">Lưu mức phí</button>
         </div>`);
-        costBox.appendChild(flatForm);
+        collapsibleContent.appendChild(flatForm);
         setTimeout(() => {
           document.getElementById(`flat-save-${s.id}`).onclick = () => {
             s.flatRate.fixed = parseFloat(document.getElementById(`flat-fixed-${s.id}`).value) || 0;
@@ -5564,8 +5909,8 @@
           <div><label style="font-size:12px; color:#8a877d;">Tiền bóng</label><input class="bc-input" type="number" min="0" id="cost-shuttle-${s.id}" value="${s.costs.shuttle}" /></div>
           <div><label style="font-size:12px; color:#8a877d;">Phát sinh khác</label><input class="bc-input" type="number" min="0" id="cost-other-${s.id}" value="${s.costs.other}" /></div>
         </div>`);
-        costBox.appendChild(costForm);
-        costBox.appendChild(el(`<button class="bc-btn outline small" id="cost-save-${s.id}" style="margin-bottom:10px;">Lưu chi phí</button>`));
+        collapsibleContent.appendChild(costForm);
+        collapsibleContent.appendChild(el(`<button class="bc-btn outline small" id="cost-save-${s.id}" style="margin-bottom:10px;">Lưu chi phí</button>`));
         setTimeout(() => {
           document.getElementById(`cost-save-${s.id}`).onclick = () => {
             s.costs = {
@@ -5592,7 +5937,7 @@
         </div>
         <div id="pen-list-${s.id}"></div>
       </div>`);
-      costBox.appendChild(penaltySection);
+      collapsibleContent.appendChild(penaltySection);
       const penList = penaltySection.querySelector(`#pen-list-${s.id}`);
       Object.entries(s.penalties).forEach(([mid, penAmt]) => {
         if (!penAmt) return;
@@ -5633,13 +5978,13 @@
     const hasData = shares.mode === 'flat' ? (shares.fixedShare > 0 || shares.casualShare > 0) : shares.total > 0;
     if (hasData || shares.fixedNames.length || shares.casualNames.length) {
       if (shares.mode === 'flat') {
-        costBox.appendChild(el(`<div style="margin-top:10px; font-size:13px; color:#6b7a73;">
+        collapsibleContent.appendChild(el(`<div style="margin-top:10px; font-size:13px; color:#6b7a73;">
           Mức áp: Cố định <strong style="color:#1B4332;">${formatVND(shares.fixedShare)}</strong>
           · Vãng lai <strong style="color:#1B4332;">${formatVND(shares.casualShare)}</strong>
           · Tổng thu: <strong style="color:#1B4332;">${formatVND(shares.total)}</strong>
         </div>`));
       } else if (shares.total > 0) {
-        costBox.appendChild(el(`<div style="margin-top:10px; font-size:13px; color:#6b7a73;">
+        collapsibleContent.appendChild(el(`<div style="margin-top:10px; font-size:13px; color:#6b7a73;">
           Tổng chia: <strong style="color:#1B4332;">${formatVND(shares.total)}</strong>
           · Cố định: <strong style="color:#1B4332;">${formatVND(shares.fixedShare)}</strong>
           · Vãng lai (×${shares.multiplier}): <strong style="color:#1B4332;">${formatVND(shares.casualShare)}</strong>
@@ -5672,14 +6017,24 @@
             <td style="padding:5px 4px; text-align:right; font-weight:600; color:#1B4332;">${formatVND(p.base + pen)}</td>
           </tr>`));
         });
-        costBox.appendChild(detail);
+        collapsibleContent.appendChild(detail);
       }
     } else if (canManage()) {
       const hint = s.flatRate.enabled
         ? `<div style="font-size:13px; color:#8a877d; margin-top:8px;">Nhập mức phí cố định và vãng lai rồi lưu để xem bảng chi tiết.</div>`
         : `<div style="font-size:13px; color:#8a877d; margin-top:8px;">Nhập chi phí và lưu để tính tiền chia cho từng người đã tham gia.</div>`;
-      costBox.appendChild(el(hint));
+      collapsibleContent.appendChild(el(hint));
     }
+
+    setTimeout(() => {
+      const toggleBtn = document.getElementById(`toggle-cost-${s.id}`);
+      if (toggleBtn) {
+        toggleBtn.onclick = () => {
+          state.expandedCosts[s.id] = !state.expandedCosts[s.id];
+          render();
+        };
+      }
+    }, 0);
 
     if (canDelete()) {
       const delBtn = card.querySelector(`#del-${s.id}`);
@@ -5759,6 +6114,7 @@
         }
         if (modifiedKeys.includes('bc_fund')) state.fund = dbMap['bc_fund'] || {};
         if (modifiedKeys.includes('bc_donations')) state.donations = dbMap['bc_donations'] || [];
+        if (modifiedKeys.includes('bc_announcements')) state.announcements = dbMap['bc_announcements'] || [];
         
         resolveMe();
         render();
