@@ -277,6 +277,81 @@
     background: #122c21 !important;
     border-left-color: #D8973C !important;
   }
+  /* Chi phí & Phạt trễ Collapsible classes */
+  .cost-collapsible-header {
+    background: #FAF8F5;
+    border: 1px solid #E3E0D6;
+    color: #1B4332;
+  }
+  body.dark-theme .cost-collapsible-header {
+    background: var(--card-bg) !important;
+    border-color: var(--card-border) !important;
+    color: var(--text-primary) !important;
+  }
+  .cost-collapsible-content {
+    background: #FAF8F5;
+    border: 1px solid #E3E0D6;
+  }
+  body.dark-theme .cost-collapsible-content {
+    background: var(--card-bg) !important;
+    border-color: var(--card-border) !important;
+  }
+
+  /* Vote status classes */
+  .status-yes {
+    background: #EAF3DE !important;
+    color: #27500A !important;
+    border-color: rgba(39, 80, 10, 0.2) !important;
+  }
+  body.dark-theme .status-yes {
+    background: rgba(19, 64, 116, 0.35) !important;
+    color: #A7F3D0 !important;
+    border-color: rgba(167, 243, 208, 0.3) !important;
+  }
+  
+  .status-no {
+    background: #FAECE7 !important;
+    color: #993C1D !important;
+    border-color: rgba(153, 60, 29, 0.2) !important;
+  }
+  body.dark-theme .status-no {
+    background: rgba(242, 100, 25, 0.35) !important;
+    color: #FCA5A5 !important;
+    border-color: rgba(252, 165, 165, 0.3) !important;
+  }
+  
+  .status-none {
+    background: #F1EFE8 !important;
+    color: #6b7a73 !important;
+    border-color: rgba(107, 122, 115, 0.2) !important;
+  }
+  body.dark-theme .status-none {
+    background: rgba(255, 255, 255, 0.08) !important;
+    color: var(--text-secondary) !important;
+    border-color: var(--card-border) !important;
+  }
+
+  .status-passed {
+    background: #FAEEDA !important;
+    color: #854F0B !important;
+    border-color: rgba(133, 79, 11, 0.2) !important;
+  }
+  body.dark-theme .status-passed {
+    background: rgba(216, 151, 60, 0.35) !important;
+    color: #FFB703 !important;
+    border-color: rgba(255, 183, 3, 0.3) !important;
+  }
+
+  .status-receiver {
+    background: #E6F1FB !important;
+    color: #0C447C !important;
+    border-color: rgba(12, 68, 124, 0.2) !important;
+  }
+  body.dark-theme .status-receiver {
+    background: rgba(13, 148, 136, 0.25) !important;
+    color: #93C5FD !important;
+    border-color: rgba(147, 197, 253, 0.3) !important;
+  }
 </style>
 
 <script>
@@ -1578,15 +1653,24 @@
       }
     });
 
+    // Tính tổng số khách mời (guests)
+    const guestVotes = s.guestVotes || {};
+    let totalGuests = 0;
+    Object.entries(guestVotes).forEach(([name, count]) => {
+      if (s.votes[name] === 'yes') {
+        totalGuests += (parseInt(count, 10) || 0);
+      }
+    });
+
     // --- Chế độ áp mức cố định (flat rate) ---
     const fr = s.flatRate || {};
     if (fr.enabled) {
       const fixedShare = fr.fixed || 0;
       const casualShare = fr.casual || 0;
-      const total = fixedNames.length * fixedShare + casualNames.length * casualShare;
+      const total = fixedNames.length * fixedShare + (casualNames.length + totalGuests) * casualShare;
       return {
         mode: 'flat',
-        total, fixedNames, casualNames, freeNames,
+        total, fixedNames, casualNames, freeNames, totalGuests,
         fixedShare, casualShare, multiplier: fixedShare > 0 ? (casualShare / fixedShare) : null,
         passedFromNames: Object.keys(passes).map(fid => state.members.find(x => x.id === fid)?.name).filter(Boolean),
         passedToNames: freeNames
@@ -1597,11 +1681,11 @@
     const costs = s.costs || { court: 0, water: 0, shuttle: 0, other: 0 };
     const total = (costs.court||0) + (costs.water||0) + (costs.shuttle||0) + (costs.other||0);
     const m = state.settings.casualMultiplier || 1.5;
-    const denom = fixedNames.length + m * casualNames.length;
+    const denom = fixedNames.length + m * (casualNames.length + totalGuests);
     const unit = denom > 0 ? total / denom : 0;
     return {
       mode: 'split',
-      total, fixedNames, casualNames, freeNames,
+      total, fixedNames, casualNames, freeNames, totalGuests,
       fixedShare: unit, casualShare: unit * m, multiplier: m,
       passedFromNames: Object.keys(passes).map(fid => state.members.find(x => x.id === fid)?.name).filter(Boolean),
       passedToNames: freeNames
@@ -2747,6 +2831,18 @@
           result[mem.id].count++; 
           result[mem.id].sessionOwed += shares.casualShare; 
           result[mem.id].owed += shares.casualShare; 
+        }
+      });
+
+      const guestVotes = s.guestVotes || {};
+      Object.entries(guestVotes).forEach(([name, count]) => {
+        const val = parseInt(count, 10) || 0;
+        if (val > 0 && s.votes[name] === 'yes') {
+          const mem = state.members.find(x => x.name === name);
+          if (mem && result[mem.id]) {
+            result[mem.id].sessionOwed += val * shares.casualShare;
+            result[mem.id].owed += val * shares.casualShare;
+          }
         }
       });
     });
@@ -5404,14 +5500,14 @@
         <h3 style="font-size:15px; margin-bottom:10px; color:#1B4332;">Tạo buổi đánh mới</h3>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
           <input class="bc-input" type="date" id="ss-date" style="flex:1.2; min-width:140px;" />
-          <input class="bc-input" type="time" id="ss-time" style="flex:1; min-width:100px;" />
+          <input class="bc-input" type="time" id="ss-time" style="flex:1; min-width:100px;" value="18:00" />
           <span style="align-self:center; color:#8a877d; font-size:13px;">đến</span>
-          <input class="bc-input" type="time" id="ss-time-end" style="flex:1; min-width:100px;" />
+          <input class="bc-input" type="time" id="ss-time-end" style="flex:1; min-width:100px;" value="19:30" />
           <select class="bc-select" id="ss-court" style="flex:1.4; min-width:160px;">${courtOptions}</select>
         </div>
         <div id="ss-date-preview" style="font-size:12px; color:#8a877d; margin-top:4px;"></div>
         <div style="display:flex; gap:8px; margin-top:8px;">
-          <input class="bc-input" id="ss-max" type="number" min="2" placeholder="Số người tối đa" style="flex:1;" />
+          <input class="bc-input" id="ss-max" type="number" min="2" placeholder="Số người tối đa" style="flex:1;" value="16" />
           <input class="bc-input" id="ss-note" placeholder="Ghi chú (tuỳ chọn)" style="flex:2;" />
         </div>
         <button class="bc-btn" id="ss-add" style="margin-top:10px;">Tạo buổi</button>
@@ -5613,7 +5709,12 @@
     const court = state.courts.find(c => c.id === s.courtId);
     const yes = Object.entries(s.votes).filter(([,v]) => v === 'yes').map(([name]) => name);
     const no = Object.entries(s.votes).filter(([,v]) => v === 'no').map(([name]) => name);
-    const full = s.max && yes.length >= s.max;
+    
+    s.guestVotes = s.guestVotes || {};
+    const totalGuests = Object.entries(s.guestVotes).reduce((sum, [name, val]) => s.votes[name] === 'yes' ? sum + (parseInt(val, 10) || 0) : sum, 0);
+    const totalYes = yes.length + totalGuests;
+    const full = s.max && totalYes >= s.max;
+    
     s.costs = s.costs || { court: 0, water: 0, shuttle: 0, other: 0 };
     const shares = computeShares(s);
 
@@ -5637,7 +5738,7 @@
         </div>
       </div>
       <div style="display:flex; gap:14px; margin-top:10px; font-size:13px; color:#6b7a73; flex-wrap:wrap;">
-        <span><span class="bc-badge" style="background:#EAF3DE; color:#27500A;">${yes.length}${s.max ? '/'+s.max : ''} tham gia</span></span>
+        <span><span class="bc-badge" style="background:#EAF3DE; color:#27500A;">${totalYes}${s.max ? '/'+s.max : ''} tham gia</span></span>
         <span><span class="bc-badge" style="background:#FAECE7; color:#993C1D;">${no.length} vắng</span></span>
         ${full ? `<span class="bc-badge" style="background:#FAEEDA; color:#854F0B;">Đủ người</span>` : ''}
         ${s.locked ? `<span class="bc-badge" style="background:#FAEEDA; color:#854F0B;">🔒 Đã chốt</span>` : ''}
@@ -5673,8 +5774,29 @@
         const yesBtn = el(`<button class="bc-btn small ${myVote==='yes'?'':'outline'}">Tham gia</button>`);
         const noBtn = el(`<button class="bc-btn small ${myVote==='no'?'':'outline'}">Không tham gia</button>`);
         yesBtn.onclick = () => { s.votes[state.me.name] = 'yes'; saveSessions(); render(); };
-        noBtn.onclick = () => { s.votes[state.me.name] = 'no'; saveSessions(); render(); };
+        noBtn.onclick = () => { s.votes[state.me.name] = 'no'; delete s.guestVotes[state.me.name]; saveSessions(); render(); };
         voteRow.appendChild(yesBtn); voteRow.appendChild(noBtn);
+
+        if (myVote === 'yes') {
+          const myGuests = s.guestVotes[state.me.name] || 0;
+          const guestSelect = el(`<div style="display:flex; align-items:center; gap:6px; margin-left:8px; font-size:12px; color:var(--text-secondary);">
+            <span>Đăng ký thêm bạn:</span>
+            <select class="bc-select" id="my-guests-select-${s.id}" style="width:65px; padding:3px 6px; font-size:12px; height:28px;">
+              ${[0,1,2,3,4,5,6,7,8,9,10].map(n => `<option value="${n}" ${myGuests===n?'selected':''}>+${n}</option>`).join('')}
+            </select>
+          </div>`);
+          guestSelect.querySelector('select').onchange = (e) => {
+            const val = parseInt(e.target.value, 10) || 0;
+            if (val > 0) {
+              s.guestVotes[state.me.name] = val;
+            } else {
+              delete s.guestVotes[state.me.name];
+            }
+            saveSessions();
+            render();
+          };
+          voteRow.appendChild(guestSelect);
+        }
       }
     }
 
@@ -5743,21 +5865,22 @@
         let statusBadge = '';
         const canVoteOnBehalf = canManage() && m.role === 'r2' && !hasPassed && !isReceiver && !m.isDeleted;
         if (canVoteOnBehalf) {
-          statusBadge = `<select class="bc-select" id="vote-select-${s.id}-${m.id}" style="width:110px; padding:4px 6px; font-size:12px; text-align-last:right;">
+          const selectClass = v === 'yes' ? 'status-yes' : v === 'no' ? 'status-no' : 'status-none';
+          statusBadge = `<select class="bc-select ${selectClass}" id="vote-select-${s.id}-${m.id}" style="width:110px; padding:4px 6px; font-size:12px; text-align-last:right;">
             <option value="" ${!v ? 'selected' : ''}>Chưa vote</option>
             <option value="yes" ${v === 'yes' ? 'selected' : ''}>Tham gia</option>
             <option value="no" ${v === 'no' ? 'selected' : ''}>Vắng</option>
           </select>`;
         } else {
           statusBadge = hasPassed
-            ? `<span class="bc-badge" style="background:#FAEEDA; color:#854F0B;">Đã pass (tính vắng)</span>`
+            ? `<span class="bc-badge status-passed">Đã pass (tính vắng)</span>`
             : isReceiver
-            ? `<span class="bc-badge" style="background:#E6F1FB; color:#0C447C;">Tham gia (Nhận pass)</span>`
+            ? `<span class="bc-badge status-receiver">Tham gia (Nhận pass)</span>`
             : v === 'yes'
-            ? `<span class="bc-badge" style="background:#EAF3DE; color:#27500A;">Tham gia</span>`
+            ? `<span class="bc-badge status-yes">Tham gia</span>`
             : v === 'no'
-              ? `<span class="bc-badge" style="background:#FAECE7; color:#993C1D;">Vắng</span>`
-              : `<span class="bc-badge" style="background:#F1EFE8; color:#888780;">Chưa vote</span>`;
+              ? `<span class="bc-badge status-no">Vắng</span>`
+              : `<span class="bc-badge status-none">Chưa vote</span>`;
         }
 
         let passCell = '';
@@ -5789,9 +5912,11 @@
           }
         }
 
+        const gCount = s.guestVotes[m.name] || 0;
+        const guestBadge = (v === 'yes' && gCount > 0) ? ` <span class="bc-badge" style="background:#FFF2E6; color:#B25E00; font-size:10px; padding:1px 4px; font-weight:700;">+${gCount} bạn</span>` : '';
         const nameLabel = m.isDeleted
-          ? `${escapeHtml(m.name)} <span style="font-size:11px; color:#993C1D; font-style:italic;">(Đã xoá)</span>`
-          : escapeHtml(m.name);
+          ? `${escapeHtml(m.name)}${guestBadge} <span style="font-size:11px; color:#993C1D; font-style:italic;">(Đã xoá)</span>`
+          : `${escapeHtml(m.name)}${guestBadge}`;
 
         const isSelfRow = state.me && state.me.id === m.id;
         const rowStyle = isSelfRow ? 'background: rgba(64,145,108,0.08); font-weight: 600; border-left: 3px solid #40916C;' : '';
@@ -5855,20 +5980,20 @@
     state.expandedCosts = state.expandedCosts || {};
     const isExpanded = !!state.expandedCosts[s.id];
 
-    const collapsibleHeader = el(`<div style="display:flex; justify-content:space-between; align-items:center; background:#FAF8F5; border:1px solid #E3E0D6; border-radius:8px; padding:8px 12px; margin-bottom:0px;">
-      <span style="font-weight:600; font-size:13px; color:#1B4332; display:flex; align-items:center; gap:6px;">💰 CHI PHÍ &amp; PHẠT TRỄ</span>
+    const collapsibleHeader = el(`<div class="cost-collapsible-header" style="display:flex; justify-content:space-between; align-items:center; border-radius:8px; padding:8px 12px; margin-bottom:0px;">
+      <span style="font-weight:600; font-size:13px; display:flex; align-items:center; gap:6px; color:inherit;">💰 CHI PHÍ &amp; PHẠT TRỄ</span>
       <button class="bc-btn outline small" id="toggle-cost-${s.id}" style="padding:4px 8px; font-size:12px; display:flex; align-items:center; gap:4px; height: 26px; border-color:#CBD5E1;">
         ${isExpanded ? 'Ẩn chi phí ✖' : 'Xem chi phí 👁'}
       </button>
     </div>`);
     costBox.appendChild(collapsibleHeader);
 
-    const collapsibleContent = el(`<div style="display:${isExpanded ? 'block' : 'none'}; margin-top:10px; border:1px solid #E3E0D6; border-radius:8px; padding:12px; background:#FAF8F5;"></div>`);
+    const collapsibleContent = el(`<div class="cost-collapsible-content" style="display:${isExpanded ? 'block' : 'none'}; margin-top:10px; border-radius:8px; padding:12px;"></div>`);
     costBox.appendChild(collapsibleContent);
 
     // --- Tiêu đề + nút chuyển chế độ (R1/Admin) ---
     const costModeBar = el(`<div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:8px;">
-      <span style="font-size:13px; font-weight:500; color:#1B4332;">Chi phí buổi này</span>
+      <span style="font-size:13px; font-weight:500; color:var(--text-primary);">Chi phí buổi này</span>
       ${canManage() ? `<div style="display:flex; gap:6px;">
         <button class="bc-btn ${!s.flatRate.enabled?'':'outline'} small" id="mode-split-${s.id}">Chia chi phí</button>
         <button class="bc-btn ${s.flatRate.enabled?'':'outline'} small" id="mode-flat-${s.id}">Áp mức cố định</button>
@@ -6009,12 +6134,25 @@
           const mem = state.members.find(x => x.name === p.name);
           const pen = mem ? (penaltyMap[mem.id] || 0) : 0;
           const typeLabel = p.type === 'fixed' ? 'Cố định' : p.type === 'free' ? '<span style="color:#27500A">Miễn phí (nhận pass)</span>' : 'Vãng lai';
+          
+          const gCount = s.guestVotes[p.name] || 0;
+          const guestCost = (s.votes[p.name] === 'yes') ? (gCount * shares.casualShare) : 0;
+          const totalBaseAndGuests = p.base + guestCost;
+          
+          let costCellHtml = '';
+          if (guestCost > 0) {
+            costCellHtml = `<div style="font-weight:600;">${formatVND(totalBaseAndGuests)}</div>
+              <div style="font-size:10px; color:#8a877d; font-weight:normal; line-height:1.2;">(Bản thân: ${formatVND(p.base)} + ${gCount} bạn: ${formatVND(guestCost)})</div>`;
+          } else {
+            costCellHtml = `<div>${formatVND(p.base)}</div>`;
+          }
+          
           detail.appendChild(el(`<tr style="border-top:1px solid #F1EFE8;">
             <td style="padding:5px 4px;">${escapeHtml(p.name)}</td>
             <td style="padding:5px 4px; color:#8a877d;">${typeLabel}</td>
-            <td style="padding:5px 4px; text-align:right;">${formatVND(p.base)}</td>
-            <td style="padding:5px 4px; text-align:right; color:#854F0B;">${pen ? formatVND(pen) : '—'}</td>
-            <td style="padding:5px 4px; text-align:right; font-weight:600; color:#1B4332;">${formatVND(p.base + pen)}</td>
+            <td style="padding:5px 4px; text-align:right; vertical-align:top;">${costCellHtml}</td>
+            <td style="padding:5px 4px; text-align:right; color:#854F0B; vertical-align:top;">${pen ? formatVND(pen) : '—'}</td>
+            <td style="padding:5px 4px; text-align:right; font-weight:600; color:#1B4332; vertical-align:top;">${formatVND(totalBaseAndGuests + pen)}</td>
           </tr>`));
         });
         collapsibleContent.appendChild(detail);
