@@ -5526,7 +5526,7 @@
         ? state.courts.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('')
         : `<option value="">(chưa có sân, thêm ở tab Sân bóng)</option>`;
       const form = el(`<div class="bc-card">
-        <h3 style="font-size:15px; margin-bottom:10px; color:#1B4332;">Tạo buổi đánh mới</h3>
+        <h3 style="font-size:15px; margin-bottom:10px; color:#1B4332;">Tạo buổi đá mới</h3>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
           <input class="bc-input" type="date" id="ss-date" style="flex:1.2; min-width:140px;" />
           <input class="bc-input" type="time" id="ss-time" style="flex:1; min-width:100px;" value="18:00" />
@@ -5539,7 +5539,7 @@
           <input class="bc-input" id="ss-max" type="number" min="2" placeholder="Số người tối đa" style="flex:1;" value="16" />
           <input class="bc-input" id="ss-note" placeholder="Ghi chú (tuỳ chọn)" style="flex:2;" />
         </div>
-        <button class="bc-btn" id="ss-add" style="margin-top:10px;">Tạo buổi</button>
+        <button class="bc-btn" id="ss-add" style="margin-top:10px;">Tạo buổi đá</button>
       </div>`);
       wrap.appendChild(form);
 
