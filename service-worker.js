@@ -1,4 +1,4 @@
-const CACHE_NAME = 'aron-football-v28';
+const CACHE_NAME = 'aron-football-v29';
 const ASSETS = [
   './',
   './index.html',
